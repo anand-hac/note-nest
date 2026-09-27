@@ -4,10 +4,11 @@ import {
   StickyNote, 
   Clock, 
   Share2, 
-  MessageSquare,
+  MessageSquare, 
   Settings, 
   Plus, 
-  CheckCircle2
+  CheckCircle2,
+  Sparkles
 } from 'lucide-react';
 import { AppStats } from '../../types';
 import { NeumorphicButton } from '../common/NeumorphicButton';
@@ -41,6 +42,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'My Notes',
       icon: StickyNote,
       badge: stats ? stats.totalNotes : null,
+    },
+    {
+      id: 'showcase',
+      label: 'Showcase & Media',
+      icon: Sparkles,
+      badge: 'Public',
+      badgeColor: 'neu-inset text-indigo-600 dark:text-indigo-400 font-bold',
     },
     {
       id: 'reminders',

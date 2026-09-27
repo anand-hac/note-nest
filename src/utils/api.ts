@@ -1,4 +1,4 @@
-import { Note, Reminder, User, AppStats, ChatMessage, OnlineStatus } from '../types';
+import { Note, Reminder, User, AppStats, ChatMessage, OnlineStatus, MediaPost, UniversalSearchResults } from '../types';
 
 const TOKEN_KEY = 'notenest_token';
 
@@ -76,7 +76,7 @@ export const api = {
     return request<{ user: User }>('/auth/me');
   },
 
-  async updateProfile(updates: { name?: string; avatarUrl?: string; preferences?: User['preferences'] }) {
+  async updateProfile(updates: Partial<User>) {
     return request<{ user: User }>('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(updates),
@@ -245,5 +245,71 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
+  },
+
+  // Media Posts (Photos & Videos)
+  async getMediaPosts(params?: { search?: string; type?: 'photo' | 'video'; userId?: string; onlyConnections?: boolean }) {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.set('search', params.search);
+    if (params?.type) searchParams.set('type', params.type);
+    if (params?.userId) searchParams.set('userId', params.userId);
+    if (params?.onlyConnections) searchParams.set('onlyConnections', 'true');
+    const queryStr = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    return request<{ posts: MediaPost[] }>(`/media${queryStr}`);
+  },
+
+  async createMediaPost(payload: {
+    title: string;
+    caption?: string;
+    type: 'photo' | 'video';
+    mediaUrl: string;
+    thumbnailUrl?: string;
+    tags?: string[];
+    visibility?: 'public' | 'connections';
+  }) {
+    return request<{ post: MediaPost }>('/media', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteMediaPost(id: string) {
+    return request<{ success: boolean; message: string }>(`/media/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async likeMediaPost(id: string) {
+    return request<{ post: MediaPost; isLiked: boolean }>(`/media/${id}/like`, {
+      method: 'POST',
+    });
+  },
+
+  async commentMediaPost(id: string, text: string) {
+    return request<{ post: MediaPost }>(`/media/${id}/comment`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  },
+
+  // Community Users & Connect Network
+  async getAllUsers(search?: string) {
+    const q = search ? `?search=${encodeURIComponent(search)}` : '';
+    return request<{ users: User[] }>(`/users${q}`);
+  },
+
+  async getUserProfile(id: string) {
+    return request<{ user: User; media: MediaPost[]; isConnected: boolean; connectionsCount: number }>(`/users/${id}`);
+  },
+
+  async toggleConnect(userId: string) {
+    return request<{ isConnected: boolean; connectionsCount: number }>(`/users/${userId}/connect`, {
+      method: 'POST',
+    });
+  },
+
+  // Universal Search (Content, Photos, Videos, Profiles, Work History)
+  async universalSearch(query: string) {
+    return request<UniversalSearchResults>(`/search?q=${encodeURIComponent(query)}`);
   },
 };

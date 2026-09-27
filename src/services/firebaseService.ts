@@ -1,6 +1,7 @@
 import { 
   getFirebaseAuth, 
   getFirebaseDb, 
+  getFirebaseStorage,
   isFirebaseConfigured, 
   googleProvider 
 } from '../config/firebase';
@@ -22,9 +23,16 @@ import {
   where, 
   orderBy, 
   getDocs,
-  Timestamp 
+  getDoc,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
-import { Note, Reminder, ChatMessage, OnlineStatus, User } from '../types';
+import { 
+  ref, 
+  uploadBytes, 
+  getDownloadURL 
+} from 'firebase/storage';
+import { Note, Reminder, ChatMessage, OnlineStatus, User, MediaPost, MediaComment } from '../types';
 
 export const firebaseService = {
   isAvailable(): boolean {
@@ -93,6 +101,165 @@ export const firebaseService = {
     const auth = getFirebaseAuth();
     if (auth) {
       await signOut(auth);
+    }
+  },
+
+  // ==========================================
+  // CLOUD STORAGE: MEDIA & PHOTO UPLOADS
+  // ==========================================
+
+  /**
+   * Uploads a file (photo or video) to Firebase Storage.
+   * If Firebase Storage is unavailable, converts safely to optimized Base64 Data URL.
+   */
+  async uploadMediaFile(file: File, folder: string = 'media'): Promise<string> {
+    const storage = getFirebaseStorage();
+    if (storage) {
+      try {
+        const fileExt = file.name.split('.').pop() || 'dat';
+        const uniqueName = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+        const storageRef = ref(storage, uniqueName);
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        return downloadUrl;
+      } catch (err) {
+        console.warn('Firebase Storage upload failed, falling back to local DataURL:', err);
+      }
+    }
+
+    // High quality local Data URL fallback
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (e) => reject(e);
+      reader.readAsDataURL(file);
+    });
+  },
+
+  // ==========================================
+  // REALTIME FIRESTORE: USER PROFILES & WORK HISTORY
+  // ==========================================
+
+  async syncUserProfile(user: User): Promise<void> {
+    const db = getFirebaseDb();
+    if (!db) return;
+    try {
+      const userRef = doc(db, 'users', user.id);
+      await setDoc(userRef, {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl || '',
+        coverUrl: user.coverUrl || '',
+        status: user.status || 'online',
+        customStatus: user.customStatus || '',
+        bio: user.bio || '',
+        role: user.role || '',
+        location: user.location || '',
+        skills: user.skills || [],
+        workHistory: user.workHistory || [],
+        connections: user.connections || [],
+        githubUrl: user.githubUrl || '',
+        linkedinUrl: user.linkedinUrl || '',
+        websiteUrl: user.websiteUrl || '',
+        lastActive: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Firebase user profile sync warning:', err);
+    }
+  },
+
+  subscribeUser(userId: string, onUpdate: (user: Partial<User>) => void): (() => void) | null {
+    const db = getFirebaseDb();
+    if (!db) return null;
+    try {
+      const userRef = doc(db, 'users', userId);
+      return onSnapshot(userRef, (snapshot) => {
+        if (snapshot.exists()) {
+          onUpdate(snapshot.data() as User);
+        }
+      }, (err) => {
+        console.warn('Firebase user listener warning:', err);
+      });
+    } catch (err) {
+      console.warn('Firebase user subscribe error:', err);
+      return null;
+    }
+  },
+
+  // ==========================================
+  // REALTIME FIRESTORE: PUBLIC MEDIA POSTS (PHOTOS & VIDEOS)
+  // ==========================================
+
+  async syncMediaPost(post: MediaPost): Promise<void> {
+    const db = getFirebaseDb();
+    if (!db) return;
+    try {
+      const postRef = doc(db, 'media_posts', post.id);
+      await setDoc(postRef, post, { merge: true });
+    } catch (err) {
+      console.warn('Firebase media post sync warning:', err);
+    }
+  },
+
+  async deleteMediaPost(postId: string): Promise<void> {
+    const db = getFirebaseDb();
+    if (!db) return;
+    try {
+      const postRef = doc(db, 'media_posts', postId);
+      await deleteDoc(postRef);
+    } catch (err) {
+      console.warn('Firebase media post delete warning:', err);
+    }
+  },
+
+  subscribeMediaPosts(onUpdate: (posts: MediaPost[]) => void): (() => void) | null {
+    const db = getFirebaseDb();
+    if (!db) return null;
+    try {
+      const q = query(collection(db, 'media_posts'));
+      return onSnapshot(q, (snapshot) => {
+        const posts: MediaPost[] = [];
+        snapshot.forEach((doc) => {
+          posts.push(doc.data() as MediaPost);
+        });
+        // Sort newest first
+        posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        onUpdate(posts);
+      }, (err) => {
+        console.warn('Firebase media posts listener warning:', err);
+      });
+    } catch (err) {
+      console.warn('Firebase media posts subscribe error:', err);
+      return null;
+    }
+  },
+
+  async likeMediaPost(postId: string, userId: string, isLiked: boolean): Promise<void> {
+    const db = getFirebaseDb();
+    if (!db) return;
+    try {
+      const postRef = doc(db, 'media_posts', postId);
+      if (isLiked) {
+        await setDoc(postRef, { likes: arrayUnion(userId) }, { merge: true });
+      } else {
+        await setDoc(postRef, { likes: arrayRemove(userId) }, { merge: true });
+      }
+    } catch (err) {
+      console.warn('Firebase like media warning:', err);
+    }
+  },
+
+  async commentMediaPost(postId: string, comment: MediaComment): Promise<void> {
+    const db = getFirebaseDb();
+    if (!db) return;
+    try {
+      const postRef = doc(db, 'media_posts', postId);
+      await setDoc(postRef, { comments: arrayUnion(comment) }, { merge: true });
+    } catch (err) {
+      console.warn('Firebase comment media warning:', err);
     }
   },
 

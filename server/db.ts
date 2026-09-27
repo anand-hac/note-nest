@@ -1,7 +1,19 @@
 import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
-import { DatabaseSchema, User, Note, Reminder, SafeUser, ChatMessage, OnlineStatus } from './types.js';
+import { v4 as uuidv4 } from 'uuid';
+import { 
+  DatabaseSchema, 
+  User, 
+  Note, 
+  Reminder, 
+  SafeUser, 
+  ChatMessage, 
+  OnlineStatus,
+  MediaPost,
+  MediaComment,
+  WorkExperience
+} from './types.js';
 
 const DB_FILE = process.env.VERCEL
   ? path.resolve('/tmp', 'db.json')
@@ -16,11 +28,6 @@ const getInitialData = (): DatabaseSchema => {
   const sarahId = 'usr_sarah_002';
   const davidId = 'usr_david_003';
 
-  const now = new Date();
-  const todayDue = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();
-  const tomorrowDue = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-  const pastDue = new Date(now.getTime() - 5 * 60 * 60 * 1000).toISOString();
-
   const users: User[] = [
     {
       id: alexId,
@@ -29,10 +36,39 @@ const getInitialData = (): DatabaseSchema => {
       name: 'Alex Rivera',
       passwordHash,
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      coverUrl: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=1200&auto=format&fit=crop&q=80',
       status: 'online',
       customStatus: 'Reviewing shared architecture notes 📌',
       bio: 'Product Lead. Focusing on clean UX, neumorphic systems, and offline-first notes.',
       role: 'Product Lead',
+      location: 'San Francisco, CA',
+      skills: ['Product Strategy', 'System Architecture', 'TypeScript', 'CRDTs', 'UI/UX'],
+      workHistory: [
+        {
+          id: 'work_alex_1',
+          title: 'Product Lead',
+          company: 'Linear',
+          location: 'San Francisco, CA',
+          startDate: '2023',
+          current: true,
+          description: 'Leading workspace collaboration, keyboard-first interactions, and real-time syncing pipelines.',
+          skills: ['TypeScript', 'React', 'CRDTs', 'Product Strategy']
+        },
+        {
+          id: 'work_alex_2',
+          title: 'Senior Product Manager',
+          company: 'Stripe',
+          location: 'San Francisco, CA',
+          startDate: '2020',
+          endDate: '2023',
+          current: false,
+          description: 'Managed developer experiences, interactive API documentation, and checkout components.',
+          skills: ['Product Management', 'API Design', 'Developer UX']
+        }
+      ],
+      connections: [sarahId, davidId],
+      githubUrl: 'https://github.com',
+      linkedinUrl: 'https://linkedin.com',
       lastActive: new Date().toISOString(),
       preferences: {
         theme: 'dark',
@@ -48,10 +84,39 @@ const getInitialData = (): DatabaseSchema => {
       name: 'Sarah Chen',
       passwordHash,
       avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+      coverUrl: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=1200&auto=format&fit=crop&q=80',
       status: 'online',
       customStatus: 'Refining sticky note color palettes 🎨',
       bio: 'Senior Product Designer. Passionate about typography, post-it aesthetics, and design tokens.',
       role: 'Senior Product Designer',
+      location: 'Seattle, WA',
+      skills: ['Design Systems', 'Figma', 'Prototyping', 'Accessibility', 'Color Systems', 'Motion'],
+      workHistory: [
+        {
+          id: 'work_sarah_1',
+          title: 'Senior Product Designer',
+          company: 'Figma',
+          location: 'Seattle, WA',
+          startDate: '2022',
+          current: true,
+          description: 'Crafting next-generation design token workflows, tactile component libraries, and soft neumorphic shadows.',
+          skills: ['Figma', 'Design Tokens', 'Design Systems', 'Micro-interactions']
+        },
+        {
+          id: 'work_sarah_2',
+          title: 'UI/UX Designer',
+          company: 'Airbnb',
+          location: 'San Francisco, CA',
+          startDate: '2019',
+          endDate: '2022',
+          current: false,
+          description: 'Led visual consistency overhaul for international host dashboard and responsive card interfaces.',
+          skills: ['Interaction Design', 'User Research', 'Design Systems']
+        }
+      ],
+      connections: [alexId],
+      githubUrl: 'https://github.com',
+      linkedinUrl: 'https://linkedin.com',
       lastActive: new Date().toISOString(),
       preferences: {
         theme: 'dark',
@@ -67,10 +132,39 @@ const getInitialData = (): DatabaseSchema => {
       name: 'David Kim',
       passwordHash,
       avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+      coverUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&auto=format&fit=crop&q=80',
       status: 'idle',
       customStatus: 'Monitoring backend locks ⚡',
       bio: 'DevOps & Systems. Infra, encryption, and real-time syncing.',
-      role: 'DevOps & Systems',
+      role: 'DevOps & Systems Engineer',
+      location: 'Austin, TX',
+      skills: ['Kubernetes', 'Terraform', 'Firebase', 'AWS', 'Node.js', 'Distributed Systems'],
+      workHistory: [
+        {
+          id: 'work_david_1',
+          title: 'Staff DevOps Engineer',
+          company: 'Cloudflare',
+          location: 'Austin, TX',
+          startDate: '2022',
+          current: true,
+          description: 'Architecting multi-region edge caches, low-latency Serverless deployment pipelines, and zero-trust policies.',
+          skills: ['Edge Computing', 'Terraform', 'Kubernetes', 'Go']
+        },
+        {
+          id: 'work_david_2',
+          title: 'Systems Infrastructure Engineer',
+          company: 'HashiCorp',
+          location: 'Remote',
+          startDate: '2018',
+          endDate: '2022',
+          current: false,
+          description: 'Built automated cluster orchestration, failover monitors, and distributed database backups.',
+          skills: ['Distributed Systems', 'Consul', 'Vault', 'Docker']
+        }
+      ],
+      connections: [alexId],
+      githubUrl: 'https://github.com',
+      linkedinUrl: 'https://linkedin.com',
       lastActive: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
       preferences: {
         theme: 'dark',
@@ -107,23 +201,84 @@ const getInitialData = (): DatabaseSchema => {
       timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
       isRead: true,
     },
-    {
-      id: 'msg_003',
-      senderId: sarahId,
-      senderName: 'Sarah Chen',
-      senderUsername: 'sarah',
-      senderAvatar: users[1].avatarUrl,
-      recipientId: alexId,
-      text: 'I updated the Architecture Sync note. Take a look when you have a moment!',
-      attachedNoteId: 'note_002',
-      attachedNoteTitle: 'Quarterly Architecture Sync',
-      attachedNoteColor: 'blue',
-      timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-      isRead: false,
-    },
   ];
 
-  return { users, notes, reminders, messages };
+  const mediaPosts: MediaPost[] = [
+    {
+      id: 'media_seed_01',
+      userId: sarahId,
+      userName: 'Sarah Chen',
+      userUsername: 'sarah',
+      userAvatar: users[1].avatarUrl,
+      userRole: 'Senior Product Designer',
+      title: 'Neumorphic Tactile Cards & Color Swatches',
+      caption: 'Exploring subtle inner-shadow depths and soft paper textures for our new sticky note release. Let me know what palette feels warmest!',
+      type: 'photo',
+      mediaUrl: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=1200&auto=format&fit=crop&q=80',
+      tags: ['design', 'ui', 'neumorphism', 'palettes', 'creativity'],
+      likes: [alexId, davidId],
+      comments: [
+        {
+          id: 'comm_01',
+          userId: alexId,
+          userName: 'Alex Rivera',
+          userUsername: 'alex',
+          userAvatar: users[0].avatarUrl,
+          text: 'The amber and canary tones have the best contrast in dark mode!',
+          createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+        }
+      ],
+      createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+      visibility: 'public',
+    },
+    {
+      id: 'media_seed_02',
+      userId: alexId,
+      userName: 'Alex Rivera',
+      userUsername: 'alex',
+      userAvatar: users[0].avatarUrl,
+      userRole: 'Product Lead',
+      title: 'Distributed Real-Time Sync & Video Architecture Walkthrough',
+      caption: 'Quick video demo on how conflict-free replicated data types (CRDTs) update across tabs in sub-50ms latency.',
+      type: 'video',
+      mediaUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=800&auto=format&fit=crop&q=80',
+      tags: ['demo', 'video', 'crdt', 'realtime', 'engineering'],
+      likes: [sarahId],
+      comments: [
+        {
+          id: 'comm_02',
+          userId: davidId,
+          userName: 'David Kim',
+          userUsername: 'david',
+          userAvatar: users[2].avatarUrl,
+          text: 'Super clean demo. The latency is practically zero.',
+          createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+        }
+      ],
+      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      visibility: 'public',
+    },
+    {
+      id: 'media_seed_03',
+      userId: davidId,
+      userName: 'David Kim',
+      userUsername: 'david',
+      userAvatar: users[2].avatarUrl,
+      userRole: 'DevOps & Systems Engineer',
+      title: 'Hybrid Cloud Topology: Vercel + Firebase Storage',
+      caption: 'Blueprint for Note Nest high availability setup. Fast edge serving paired with Firestore real-time snapshots.',
+      type: 'photo',
+      mediaUrl: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=1200&auto=format&fit=crop&q=80',
+      tags: ['cloud', 'architecture', 'firebase', 'vercel', 'devops'],
+      likes: [alexId, sarahId],
+      comments: [],
+      createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+      visibility: 'public',
+    }
+  ];
+
+  return { users, notes, reminders, messages, mediaPosts };
 };
 
 export class Database {
@@ -141,6 +296,7 @@ export class Database {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
         if (!parsed.messages) parsed.messages = [];
+        if (!parsed.mediaPosts) parsed.mediaPosts = [];
         return parsed;
       }
 
@@ -150,6 +306,7 @@ export class Database {
         const raw = fs.readFileSync(bundledDb, 'utf-8');
         const parsed = JSON.parse(raw);
         if (!parsed.messages) parsed.messages = [];
+        if (!parsed.mediaPosts) parsed.mediaPosts = [];
         this.saveDirect(parsed);
         return parsed;
       }
@@ -207,10 +364,18 @@ export class Database {
       email: user.email,
       name: user.name,
       avatarUrl: user.avatarUrl,
+      coverUrl: user.coverUrl,
       status: user.status || 'online',
       customStatus: user.customStatus || '',
       bio: user.bio || '',
       role: user.role || 'Member',
+      location: user.location || '',
+      skills: user.skills || [],
+      workHistory: user.workHistory || [],
+      connections: user.connections || [],
+      githubUrl: user.githubUrl,
+      linkedinUrl: user.linkedinUrl,
+      websiteUrl: user.websiteUrl,
       lastActive: user.lastActive || new Date().toISOString(),
       preferences: user.preferences,
       createdAt: user.createdAt,
@@ -242,65 +407,276 @@ export class Database {
         u.username.toLowerCase().includes(q) || 
         u.email.toLowerCase().includes(q) || 
         u.name.toLowerCase().includes(q) ||
-        (u.role && u.role.toLowerCase().includes(q))
+        (u.role && u.role.toLowerCase().includes(q)) ||
+        (u.skills && u.skills.some(s => s.toLowerCase().includes(q)))
       ))
       .map(u => this.toSafeUser(u));
   }
 
   getAllTeamMembers(currentUserId?: string): SafeUser[] {
-    return this.data.users
-      .filter(u => u.id !== currentUserId)
-      .map(u => this.toSafeUser(u));
+    return this.data.users.map(u => this.toSafeUser(u));
   }
 
-  async createUser(user: User): Promise<User> {
-    if (!user.status) user.status = 'online';
+  async createUser(user: User): Promise<SafeUser> {
+    if (!user.workHistory) user.workHistory = [];
+    if (!user.connections) user.connections = [];
+    if (!user.skills) user.skills = [];
     this.data.users.push(user);
-    await this.persist();
-    return user;
-  }
-
-  async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
-    const idx = this.data.users.findIndex(u => u.id === id);
-    if (idx === -1) return null;
-    this.data.users[idx] = { ...this.data.users[idx], ...updates };
-    await this.persist();
-    return this.data.users[idx];
-  }
-
-  async updateUserPresence(userId: string, status: OnlineStatus, customStatus?: string, bio?: string): Promise<SafeUser | null> {
-    const user = this.data.users.find(u => u.id === userId);
-    if (!user) return null;
-    user.status = status;
-    if (customStatus !== undefined) user.customStatus = customStatus;
-    if (bio !== undefined) user.bio = bio;
-    user.lastActive = new Date().toISOString();
     await this.persist();
     return this.toSafeUser(user);
   }
 
+  async updateUser(id: string, updates: Partial<User>): Promise<SafeUser | null> {
+    const idx = this.data.users.findIndex(u => u.id === id);
+    if (idx === -1) return null;
+
+    this.data.users[idx] = {
+      ...this.data.users[idx],
+      ...updates,
+      lastActive: new Date().toISOString(),
+    };
+    await this.persist();
+    return this.toSafeUser(this.data.users[idx]);
+  }
+
   async deleteUser(id: string): Promise<boolean> {
-    const initialCount = this.data.users.length;
-    this.data.users = this.data.users.filter(u => u.id !== id);
+    const idx = this.data.users.findIndex(u => u.id === id);
+    if (idx === -1) return false;
+    this.data.users.splice(idx, 1);
     this.data.notes = this.data.notes.filter(n => n.userId !== id);
     this.data.reminders = this.data.reminders.filter(r => r.userId !== id);
-    this.data.notes.forEach(n => {
-      n.collaborators = n.collaborators.filter(c => c.userId !== id);
-    });
-    this.data.messages = this.data.messages.filter(m => m.senderId !== id && m.recipientId !== id);
+    if (this.data.mediaPosts) {
+      this.data.mediaPosts = this.data.mediaPosts.filter(m => m.userId !== id);
+    }
     await this.persist();
-    return this.data.users.length < initialCount;
+    return true;
+  }
+
+  // Connection Operations
+  async toggleConnection(currentUserId: string, targetUserId: string): Promise<{ isConnected: boolean; connectionsCount: number } | null> {
+    const currentUser = this.findUserById(currentUserId);
+    const targetUser = this.findUserById(targetUserId);
+    if (!currentUser || !targetUser || currentUserId === targetUserId) return null;
+
+    if (!currentUser.connections) currentUser.connections = [];
+    if (!targetUser.connections) targetUser.connections = [];
+
+    const idx = currentUser.connections.indexOf(targetUserId);
+    let isConnected: boolean;
+
+    if (idx > -1) {
+      currentUser.connections.splice(idx, 1);
+      const targetIdx = targetUser.connections.indexOf(currentUserId);
+      if (targetIdx > -1) targetUser.connections.splice(targetIdx, 1);
+      isConnected = false;
+    } else {
+      currentUser.connections.push(targetUserId);
+      if (!targetUser.connections.includes(currentUserId)) {
+        targetUser.connections.push(currentUserId);
+      }
+      isConnected = true;
+    }
+
+    await this.persist();
+    return { isConnected, connectionsCount: currentUser.connections.length };
+  }
+
+  // Media Operations (Photos & Videos)
+  getMediaPosts(params: {
+    search?: string;
+    type?: 'photo' | 'video';
+    userId?: string;
+    onlyConnections?: boolean;
+    currentUserId?: string;
+  }): MediaPost[] {
+    let list = [...(this.data.mediaPosts || [])];
+
+    if (params.type) {
+      list = list.filter(m => m.type === params.type);
+    }
+
+    if (params.userId) {
+      list = list.filter(m => m.userId === params.userId);
+    }
+
+    if (params.onlyConnections && params.currentUserId) {
+      const currentUser = this.findUserById(params.currentUserId);
+      const connSet = new Set(currentUser?.connections || []);
+      list = list.filter(m => connSet.has(m.userId) || m.userId === params.currentUserId);
+    }
+
+    if (params.search) {
+      const q = params.search.toLowerCase().trim();
+      list = list.filter(m =>
+        m.title.toLowerCase().includes(q) ||
+        m.caption.toLowerCase().includes(q) ||
+        m.tags.some(t => t.toLowerCase().includes(q)) ||
+        m.userName.toLowerCase().includes(q) ||
+        m.userUsername.toLowerCase().includes(q)
+      );
+    }
+
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  async createMediaPost(data: Partial<MediaPost>, user: User): Promise<MediaPost> {
+    const post: MediaPost = {
+      id: `media_${uuidv4()}`,
+      userId: user.id,
+      userName: user.name,
+      userUsername: user.username,
+      userAvatar: user.avatarUrl,
+      userRole: user.role || 'Member',
+      title: data.title?.trim() || 'Untitled Media',
+      caption: data.caption?.trim() || '',
+      type: data.type === 'video' ? 'video' : 'photo',
+      mediaUrl: data.mediaUrl || '',
+      thumbnailUrl: data.thumbnailUrl,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+      likes: [],
+      comments: [],
+      createdAt: new Date().toISOString(),
+      visibility: data.visibility === 'connections' ? 'connections' : 'public',
+    };
+
+    if (!this.data.mediaPosts) this.data.mediaPosts = [];
+    this.data.mediaPosts.unshift(post);
+    await this.persist();
+    return post;
+  }
+
+  async deleteMediaPost(id: string, userId: string): Promise<boolean> {
+    if (!this.data.mediaPosts) return false;
+    const idx = this.data.mediaPosts.findIndex(m => m.id === id && m.userId === userId);
+    if (idx === -1) return false;
+    this.data.mediaPosts.splice(idx, 1);
+    await this.persist();
+    return true;
+  }
+
+  async likeMediaPost(id: string, userId: string): Promise<{ post: MediaPost; isLiked: boolean } | null> {
+    if (!this.data.mediaPosts) return null;
+    const post = this.data.mediaPosts.find(m => m.id === id);
+    if (!post) return null;
+
+    const idx = post.likes.indexOf(userId);
+    let isLiked: boolean;
+    if (idx > -1) {
+      post.likes.splice(idx, 1);
+      isLiked = false;
+    } else {
+      post.likes.push(userId);
+      isLiked = true;
+    }
+
+    await this.persist();
+    return { post, isLiked };
+  }
+
+  async commentMediaPost(
+    id: string, 
+    commentData: { userId: string; userName: string; userUsername: string; userAvatar?: string; text: string }
+  ): Promise<MediaPost | null> {
+    if (!this.data.mediaPosts) return null;
+    const post = this.data.mediaPosts.find(m => m.id === id);
+    if (!post) return null;
+
+    const newComment: MediaComment = {
+      id: `comm_${uuidv4()}`,
+      userId: commentData.userId,
+      userName: commentData.userName,
+      userUsername: commentData.userUsername,
+      userAvatar: commentData.userAvatar,
+      text: commentData.text,
+      createdAt: new Date().toISOString(),
+    };
+
+    post.comments.push(newComment);
+    await this.persist();
+    return post;
+  }
+
+  // Universal Search
+  universalSearch(queryStr: string, currentUserId: string): {
+    notes: Note[];
+    media: MediaPost[];
+    users: SafeUser[];
+    workExperiences: { user: SafeUser; experience: WorkExperience }[];
+  } {
+    const q = queryStr.toLowerCase().trim();
+    if (!q) {
+      return { notes: [], media: [], users: [], workExperiences: [] };
+    }
+
+    // 1. Search notes (user's owned or shared notes)
+    const userNotes = this.getNotesForUser(currentUserId);
+    const allNotes = [...userNotes.owned, ...userNotes.shared];
+    const matchingNotes = allNotes.filter(n =>
+      n.title.toLowerCase().includes(q) ||
+      n.content.toLowerCase().includes(q) ||
+      n.tags.some(t => t.toLowerCase().includes(q))
+    );
+
+    // 2. Search media posts (photos and videos)
+    const allMedia = this.data.mediaPosts || [];
+    const matchingMedia = allMedia.filter(m =>
+      m.title.toLowerCase().includes(q) ||
+      m.caption.toLowerCase().includes(q) ||
+      m.tags.some(t => t.toLowerCase().includes(q)) ||
+      m.userName.toLowerCase().includes(q) ||
+      m.type.toLowerCase() === q
+    );
+
+    // 3. Search users (name, username, bio, role, skills, location)
+    const matchingUsers = this.data.users
+      .filter(u =>
+        u.name.toLowerCase().includes(q) ||
+        u.username.toLowerCase().includes(q) ||
+        (u.bio && u.bio.toLowerCase().includes(q)) ||
+        (u.role && u.role.toLowerCase().includes(q)) ||
+        (u.location && u.location.toLowerCase().includes(q)) ||
+        (u.skills && u.skills.some(s => s.toLowerCase().includes(q)))
+      )
+      .map(u => this.toSafeUser(u));
+
+    // 4. Search work history specifically
+    const workMatches: { user: SafeUser; experience: WorkExperience }[] = [];
+    for (const u of this.data.users) {
+      if (u.workHistory && Array.isArray(u.workHistory)) {
+        for (const exp of u.workHistory) {
+          if (
+            exp.title.toLowerCase().includes(q) ||
+            exp.company.toLowerCase().includes(q) ||
+            exp.description.toLowerCase().includes(q) ||
+            (exp.skills && exp.skills.some(s => s.toLowerCase().includes(q))) ||
+            (exp.location && exp.location.toLowerCase().includes(q))
+          ) {
+            workMatches.push({
+              user: this.toSafeUser(u),
+              experience: exp,
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      notes: matchingNotes,
+      media: matchingMedia,
+      users: matchingUsers,
+      workExperiences: workMatches,
+    };
   }
 
   // Note Operations
   getNotesForUser(userId: string): { owned: Note[]; shared: Note[] } {
     const owned = this.data.notes.filter(n => n.userId === userId && !n.isTrash);
-    const shared = this.data.notes.filter(n => n.userId !== userId && !n.isTrash && n.collaborators.some(c => c.userId === userId));
+    const shared = this.data.notes.filter(n => 
+      n.userId !== userId && 
+      !n.isTrash && 
+      n.collaborators.some(c => c.userId === userId)
+    );
     return { owned, shared };
-  }
-
-  getTrashNotes(userId: string): Note[] {
-    return this.data.notes.filter(n => n.userId === userId && n.isTrash);
   }
 
   findNoteById(id: string): Note | undefined {
@@ -328,16 +704,16 @@ export class Database {
   async deleteNote(id: string): Promise<boolean> {
     const initialCount = this.data.notes.length;
     this.data.notes = this.data.notes.filter(n => n.id !== id);
-    this.data.reminders.forEach(r => {
-      if (r.noteId === id) r.noteId = null;
-    });
+    this.data.reminders = this.data.reminders.filter(r => r.noteId !== id);
     await this.persist();
     return this.data.notes.length < initialCount;
   }
 
   // Reminder Operations
   getRemindersForUser(userId: string): Reminder[] {
-    return this.data.reminders.filter(r => r.userId === userId);
+    return this.data.reminders
+      .filter(r => r.userId === userId)
+      .sort((a, b) => new Date(a.dueDateTime).getTime() - new Date(b.dueDateTime).getTime());
   }
 
   findReminderById(id: string): Reminder | undefined {
@@ -345,7 +721,7 @@ export class Database {
   }
 
   async createReminder(reminder: Reminder): Promise<Reminder> {
-    this.data.reminders.unshift(reminder);
+    this.data.reminders.push(reminder);
     await this.persist();
     return reminder;
   }

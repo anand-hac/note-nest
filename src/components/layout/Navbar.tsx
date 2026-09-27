@@ -5,14 +5,15 @@ import {
   Sun, 
   Moon, 
   Bell, 
-  MessageSquare,
+  MessageSquare, 
   LogOut, 
   User as UserIcon, 
   Shield, 
   Volume2, 
   VolumeX, 
   Menu,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -28,6 +29,8 @@ interface NavbarProps {
   currentPage: string;
   onToggleMobileMenu: () => void;
   isMobileMenuOpen: boolean;
+  onOpenGlobalSearch?: () => void;
+  onOpenMyProfile?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,6 +40,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigate,
   onToggleMobileMenu,
   isMobileMenuOpen,
+  onOpenGlobalSearch,
+  onOpenMyProfile,
 }) => {
   const { user, logout, updateUserPreferences } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -61,6 +66,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Global hotkey: Ctrl+K or Cmd+K opens universal search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        onOpenGlobalSearch?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onOpenGlobalSearch]);
 
   const toggleSound = async () => {
     if (!user) return;
@@ -108,25 +125,28 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
 
-        {/* Center: Global Search Bar */}
-        <div className="flex-1 max-w-md mx-2 sm:mx-6">
-          <div className="relative flex items-center">
-            <Search className="w-4 h-4 absolute left-3.5 text-slate-400 pointer-events-none" />
+        {/* Center: Universal Knowledge Search Bar */}
+        <div className="flex-1 max-w-lg mx-2 sm:mx-6">
+          <div 
+            onClick={() => {
+              sound.playClick();
+              onOpenGlobalSearch?.();
+            }}
+            className="relative flex items-center cursor-pointer group"
+          >
+            <Search className="w-4 h-4 absolute left-3.5 text-slate-400 group-hover:text-indigo-500 transition pointer-events-none" />
             <input
               type="text"
-              placeholder="Search notes, tags, reminders..."
+              readOnly
+              placeholder="Search content, photos, videos, people, work history..."
               value={searchQuery}
-              onChange={e => onSearchChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm rounded-xl neu-input text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
+              className="w-full pl-10 pr-14 py-2 text-xs sm:text-sm rounded-xl neu-input text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none cursor-pointer group-hover:border-indigo-500/40 transition"
             />
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange('')}
-                className="absolute right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+            <div className="absolute right-2.5 hidden sm:flex items-center gap-1 pointer-events-none">
+              <kbd className="px-1.5 py-0.5 text-[10px] font-bold rounded-md neu-inset text-slate-400 dark:text-slate-500">
+                ⌘K
+              </kbd>
+            </div>
           </div>
         </div>
 
@@ -188,52 +208,59 @@ export const Navbar: React.FC<NavbarProps> = ({
                 sound.playClick();
                 setShowNotificationsMenu(!showNotificationsMenu);
               }}
-              className={`p-2.5 rounded-xl neu-btn relative text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white ${
-                showNotificationsMenu ? 'neu-btn-active' : ''
-              }`}
               title="Notifications"
+              className="p-2.5 rounded-xl neu-btn text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white relative"
             >
               <Bell className="w-4 h-4" />
               {alerts.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-[10px] font-bold text-white flex items-center justify-center animate-pulse">
-                  {alerts.length}
-                </span>
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
               )}
             </button>
 
-            {/* Notification Dropdown */}
+            {/* Notifications Menu */}
             {showNotificationsMenu && (
-              <div className="absolute right-0 mt-3 w-80 rounded-2xl neu-card bg-[#edf2f8] dark:bg-[#191b20] border border-black/10 dark:border-white/10 p-3 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center justify-between pb-2 border-b border-black/5 dark:border-white/5 px-1">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Notifications & Alerts
-                  </h4>
-                  {browserPermission !== 'granted' && browserPermission !== 'unsupported' && (
-                    <button
-                      onClick={requestBrowserPermission}
-                      className="text-[11px] font-medium text-amber-500 hover:underline"
-                    >
-                      Enable Browser Alerts
-                    </button>
-                  )}
+              <div className="absolute right-0 mt-3 w-80 rounded-2xl neu-card bg-[#edf2f8] dark:bg-[#191b20] border border-black/10 dark:border-white/10 p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center justify-between pb-3 border-b border-black/5 dark:border-white/5">
+                  <span className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
+                    Due & Upcoming Alerts
+                  </span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full neu-inset text-amber-500 font-bold">
+                    {alerts.length}
+                  </span>
                 </div>
 
-                <div className="py-2 max-h-64 overflow-y-auto space-y-2">
+                {browserPermission !== 'granted' && (
+                  <div className="mt-3 p-2.5 rounded-xl neu-inset bg-[#e5ebf3] dark:bg-[#16181d] text-center space-y-1.5">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Enable desktop alerts for background sound & banner notices
+                    </p>
+                    <button
+                      onClick={requestBrowserPermission}
+                      className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-bold hover:bg-indigo-700"
+                    >
+                      Enable Desktop Alerts
+                    </button>
+                  </div>
+                )}
+
+                <div className="mt-3 max-h-60 overflow-y-auto space-y-2">
                   {alerts.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-slate-400">
-                      No pending reminder alerts right now.
-                    </div>
+                    <p className="text-xs text-slate-400 text-center py-4">
+                      No pending reminder alarms.
+                    </p>
                   ) : (
                     alerts.map(a => (
                       <div
                         key={a.id}
-                        className="p-2.5 rounded-xl neu-inset bg-[#e6ecf4] dark:bg-[#15171b] flex items-center justify-between text-xs"
+                        className="p-2.5 rounded-xl neu-inset bg-[#e6ecf4] dark:bg-[#15171b] flex items-start justify-between gap-2"
                       >
-                        <div className="truncate pr-2">
-                          <p className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
                             {a.title}
                           </p>
-                          <span className="text-[10px] text-amber-500 font-medium">Due now</span>
+                          <p className="text-[10px] text-amber-500 font-semibold">
+                            {new Date(a.dueDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
                         </div>
                         <button
                           onClick={() => dismissAlert(a.id)}
@@ -256,7 +283,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 sound.playClick();
                 setShowProfileMenu(!showProfileMenu);
               }}
-              className="flex items-center gap-2 p-1.5 rounded-2xl neu-btn text-slate-700 dark:text-slate-200"
+              className="flex items-center gap-2 p-1.5 rounded-2xl neu-btn text-slate-700 dark:text-slate-200 cursor-pointer"
             >
               <img
                 src={user?.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username}`}
@@ -278,16 +305,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <p className="text-[11px] text-slate-400 truncate">@{user?.username}</p>
                 </div>
 
-                <div className="py-1">
+                <div className="py-1 space-y-0.5">
                   <button
                     onClick={() => {
-                      onNavigate('settings');
                       setShowProfileMenu(false);
+                      onOpenMyProfile?.();
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 transition"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-black/5 dark:hover:bg-white/5 transition cursor-pointer"
                   >
                     <UserIcon className="w-3.5 h-3.5" />
-                    Profile & Preferences
+                    <span>View Public Profile</span>
                   </button>
 
                   <button
@@ -295,10 +322,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onNavigate('settings');
                       setShowProfileMenu(false);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 transition"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 transition cursor-pointer"
                   >
                     <Shield className="w-3.5 h-3.5" />
-                    Security Settings
+                    <span>Settings & Cloud Sync</span>
                   </button>
                 </div>
 
@@ -308,10 +335,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setShowProfileMenu(false);
                       logout();
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10 transition"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-red-500 hover:bg-red-500/10 transition cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    Log Out
+                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>

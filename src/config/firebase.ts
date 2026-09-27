@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 export interface FirebaseConfigOptions {
   apiKey?: string;
@@ -52,6 +53,7 @@ export function isFirebaseConfigured(): boolean {
 let firebaseAppInstance: FirebaseApp | null = null;
 let firebaseAuthInstance: Auth | null = null;
 let firebaseDbInstance: Firestore | null = null;
+let firebaseStorageInstance: FirebaseStorage | null = null;
 
 /**
  * Initializes and returns the Firebase App instance.
@@ -107,6 +109,22 @@ export function getFirebaseDb(): Firestore | null {
   return firebaseDbInstance;
 }
 
+/**
+ * Retrieves the Firebase Storage instance.
+ */
+export function getFirebaseStorage(): FirebaseStorage | null {
+  const app = getFirebaseApp();
+  if (!app) return null;
+  if (!firebaseStorageInstance) {
+    try {
+      firebaseStorageInstance = getStorage(app);
+    } catch (err) {
+      console.error('Failed to get Firebase Storage:', err);
+    }
+  }
+  return firebaseStorageInstance;
+}
+
 export const googleProvider = new GoogleAuthProvider();
 
 /**
@@ -119,6 +137,7 @@ export function saveCustomFirebaseConfig(config: FirebaseConfigOptions): boolean
     firebaseAppInstance = null;
     firebaseAuthInstance = null;
     firebaseDbInstance = null;
+    firebaseStorageInstance = null;
     return true;
   } catch (err) {
     console.error('Failed to save Firebase config:', err);
@@ -135,6 +154,7 @@ export function clearCustomFirebaseConfig(): void {
     firebaseAppInstance = null;
     firebaseAuthInstance = null;
     firebaseDbInstance = null;
+    firebaseStorageInstance = null;
   } catch {
     // ignore
   }

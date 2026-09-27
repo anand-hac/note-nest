@@ -14,14 +14,18 @@ import { RemindersPage } from './pages/RemindersPage';
 import { SharedPage } from './pages/SharedPage';
 import { ChatPage } from './pages/ChatPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ShowcasePage } from './pages/ShowcasePage';
 import { AuthPage } from './pages/AuthPage';
-import { Note, Reminder, AppStats, ReminderPriority, NoteColor } from './types';
+import { GlobalSearchModal } from './components/search/GlobalSearchModal';
+import { UserProfileModal } from './components/profile/UserProfileModal';
+import { EditProfileModal } from './components/profile/EditProfileModal';
+import { Note, Reminder, AppStats, User, MediaPost } from './types';
 import { api } from './utils/api';
 import { sound } from './utils/sound';
 import { firebaseService } from './services/firebaseService';
 
 const MainApp: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, refreshUser } = useAuth();
   const { checkRemindersNow } = useNotifications();
 
   const [currentPage, setCurrentPage] = useState<string>('dashboard');
@@ -44,6 +48,11 @@ const MainApp: React.FC = () => {
 
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+
+  // Search, Profile & Media Modals
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [viewProfileUserId, setViewProfileUserId] = useState<string | null>(null);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
   const loadAllData = useCallback(async () => {
     if (!user) return;
@@ -99,37 +108,42 @@ const MainApp: React.FC = () => {
       savedNote = res.note;
       setNotes(prev => [res.note, ...prev]);
     }
+
+    // Mirror to Firebase if available
     if (firebaseService.isAvailable()) {
       firebaseService.syncNote(savedNote);
     }
-    await loadAllData();
-    checkRemindersNow();
+
+    // If an associated reminder was created/updated
+    if (noteData.reminder && noteData.reminder.dueDateTime) {
+      const remRes = await api.getReminders();
+      setReminders(remRes.reminders);
+      checkRemindersNow();
+    }
+
+    sound.playChime();
+    setIsNoteModalOpen(false);
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-    try {
-      await api.deleteNote(noteId);
-      if (firebaseService.isAvailable()) {
-        firebaseService.deleteNote(noteId);
-      }
-      sound.playClick();
-      setNotes(prev => prev.filter(n => n.id !== noteId));
-      await loadAllData();
-    } catch (err) {
-      console.error('Failed to delete note:', err);
+  const handleDeleteNote = async (id: string) => {
+    sound.playClick();
+    await api.deleteNote(id);
+    if (firebaseService.isAvailable()) {
+      firebaseService.deleteNote(id);
     }
+    setNotes(prev => prev.filter(n => n.id !== id));
+    setSharedNotes(prev => prev.filter(n => n.id !== id));
+    // Also remove any linked reminders from state
+    setReminders(prev => prev.filter(r => r.noteId !== id));
   };
 
   const handleTogglePin = async (note: Note) => {
-    try {
-      const res = await api.updateNote(note.id, { isPinned: !note.isPinned });
-      if (firebaseService.isAvailable()) {
-        firebaseService.syncNote(res.note);
-      }
-      setNotes(prev => prev.map(n => (n.id === res.note.id ? res.note : n)));
-      await loadAllData();
-    } catch (err) {
-      console.error('Failed to toggle pin:', err);
+    sound.playClick();
+    const res = await api.updateNote(note.id, { isPinned: !note.isPinned });
+    setNotes(prev => prev.map(n => (n.id === note.id ? res.note : n)));
+    setSharedNotes(prev => prev.map(n => (n.id === note.id ? res.note : n)));
+    if (firebaseService.isAvailable()) {
+      firebaseService.syncNote(res.note);
     }
   };
 
@@ -141,8 +155,10 @@ const MainApp: React.FC = () => {
 
   const handleNoteUpdatedFromShare = (updatedNote: Note) => {
     setNotes(prev => prev.map(n => (n.id === updatedNote.id ? updatedNote : n)));
-    setSharingNote(updatedNote);
-    loadAllData();
+    setSharedNotes(prev => prev.map(n => (n.id === updatedNote.id ? updatedNote : n)));
+    if (firebaseService.isAvailable()) {
+      firebaseService.syncNote(updatedNote);
+    }
   };
 
   // Reminder actions
@@ -158,72 +174,72 @@ const MainApp: React.FC = () => {
     setIsReminderModalOpen(true);
   };
 
-  const handleSaveReminder = async (payload: {
-    title: string;
-    description?: string;
-    dueDateTime: string;
-    priority: ReminderPriority;
-    noteId?: string | null;
-  }) => {
+  const handleSaveReminder = async (remData: Partial<Reminder>) => {
     let savedReminder: Reminder;
     if (editingReminder) {
-      const res = await api.updateReminder(editingReminder.id, payload);
+      const res = await api.updateReminder(editingReminder.id, remData);
       savedReminder = res.reminder;
       setReminders(prev => prev.map(r => (r.id === res.reminder.id ? res.reminder : r)));
     } else {
-      const res = await api.createReminder(payload);
+      const res = await api.createReminder(remData as any);
       savedReminder = res.reminder;
-      setReminders(prev => [res.reminder, ...prev]);
+      setReminders(prev => [...prev, res.reminder]);
     }
+
     if (firebaseService.isAvailable()) {
       firebaseService.syncReminder(savedReminder);
     }
-    await loadAllData();
+
+    sound.playChime();
+    setIsReminderModalOpen(false);
     checkRemindersNow();
   };
 
   const handleToggleReminder = async (id: string) => {
-    try {
-      const res = await api.toggleReminder(id);
-      if (firebaseService.isAvailable()) {
-        firebaseService.syncReminder(res.reminder);
-      }
-      setReminders(prev => prev.map(r => (r.id === id ? res.reminder : r)));
-      await loadAllData();
-    } catch (err) {
-      console.error('Failed to toggle reminder:', err);
+    sound.playClick();
+    const res = await api.toggleReminder(id);
+    setReminders(prev => prev.map(r => (r.id === id ? res.reminder : r)));
+    if (firebaseService.isAvailable()) {
+      firebaseService.syncReminder(res.reminder);
     }
+    checkRemindersNow();
   };
 
   const handleDeleteReminder = async (id: string) => {
-    try {
-      await api.deleteReminder(id);
-      if (firebaseService.isAvailable()) {
-        firebaseService.deleteReminder(id);
-      }
-      sound.playClick();
-      setReminders(prev => prev.filter(r => r.id !== id));
-      await loadAllData();
-    } catch (err) {
-      console.error('Failed to delete reminder:', err);
+    sound.playClick();
+    await api.deleteReminder(id);
+    if (firebaseService.isAvailable()) {
+      firebaseService.deleteReminder(id);
     }
+    setReminders(prev => prev.filter(r => r.id !== id));
   };
 
-  const handleQuickCreateNote = async (title: string, content: string, color?: NoteColor) => {
-    const res = await api.createNote({ title, content, color: color || 'yellow' });
+  const handleQuickCreateNote = async (title: string, color: any) => {
+    const res = await api.createNote({
+      title,
+      color,
+      content: '',
+      tags: [],
+    });
     setNotes(prev => [res.note, ...prev]);
-    await loadAllData();
+    if (firebaseService.isAvailable()) {
+      firebaseService.syncNote(res.note);
+    }
+    sound.playChime();
   };
 
   const handleQuickCreateReminder = async (payload: {
     title: string;
     dueDateTime: string;
-    priority: ReminderPriority;
+    priority: any;
     noteId?: string | null;
   }) => {
     const res = await api.createReminder(payload);
-    setReminders(prev => [res.reminder, ...prev]);
-    await loadAllData();
+    setReminders(prev => [...prev, res.reminder]);
+    if (firebaseService.isAvailable()) {
+      firebaseService.syncReminder(res.reminder);
+    }
+    sound.playChime();
     checkRemindersNow();
   };
 
@@ -231,19 +247,21 @@ const MainApp: React.FC = () => {
     const found = [...notes, ...sharedNotes].find(n => n.id === noteId);
     if (found) {
       handleEditNote(found);
+    } else {
+      setCurrentPage('notes');
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#141518]">
+      <div className="min-h-screen flex items-center justify-center bg-[#edf2f8] dark:bg-[#141518]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-3xl neu-raised bg-[#191b20] p-1 flex items-center justify-center animate-pulse">
-            <img src="/app-icon.png" alt="Note Nest" className="w-12 h-12 rounded-2xl" />
+          <div className="w-12 h-12 rounded-2xl neu-raised flex items-center justify-center animate-pulse">
+            <img src="/app-icon.png" alt="Note Nest" className="w-8 h-8 rounded-xl" />
           </div>
-          <span className="text-xs uppercase font-bold tracking-widest text-slate-400">
-            Loading Note Nest...
-          </span>
+          <p className="text-xs uppercase tracking-widest font-bold text-slate-500">
+            Initializing Note Nest...
+          </p>
         </div>
       </div>
     );
@@ -254,24 +272,23 @@ const MainApp: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#edf2f8] dark:bg-[#141518] text-slate-900 dark:text-slate-100 transition-colors duration-300">
-      {/* Top Navbar */}
+    <div className="min-h-screen flex flex-col bg-[#edf2f8] dark:bg-[#141518] text-slate-800 dark:text-slate-100 transition-colors">
+      {/* Top Neumorphic Navigation */}
       <Navbar
         onOpenNewNote={handleOpenNewNote}
         searchQuery={searchQuery}
         onSearchChange={q => {
           setSearchQuery(q);
-          if (q.trim() && currentPage !== 'notes') {
-            setCurrentPage('notes');
-          }
         }}
+        onOpenGlobalSearch={() => setIsSearchModalOpen(true)}
+        onOpenMyProfile={() => setViewProfileUserId(user.id)}
         onNavigate={setCurrentPage}
         currentPage={currentPage}
         isMobileMenuOpen={isMobileMenuOpen}
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       />
 
-      <div className="max-w-7xl mx-auto flex">
+      <div className="max-w-7xl mx-auto flex w-full">
         {/* Responsive Sidebar */}
         <Sidebar
           currentPage={currentPage}
@@ -316,6 +333,15 @@ const MainApp: React.FC = () => {
             />
           )}
 
+          {currentPage === 'showcase' && (
+            <ShowcasePage
+              currentUser={user}
+              onOpenChatWithUser={(targetUser) => {
+                setCurrentPage('chat');
+              }}
+            />
+          )}
+
           {currentPage === 'reminders' && (
             <RemindersPage
               reminders={reminders}
@@ -350,7 +376,7 @@ const MainApp: React.FC = () => {
         </main>
       </div>
 
-      {/* Modals */}
+      {/* Note Modal */}
       <NoteModal
         isOpen={isNoteModalOpen}
         onClose={() => setIsNoteModalOpen(false)}
@@ -360,6 +386,7 @@ const MainApp: React.FC = () => {
         currentUserId={user.id}
       />
 
+      {/* Share Modal */}
       <ShareModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
@@ -367,6 +394,7 @@ const MainApp: React.FC = () => {
         onNoteUpdated={handleNoteUpdatedFromShare}
       />
 
+      {/* Reminder Modal */}
       <ReminderModal
         isOpen={isReminderModalOpen}
         onClose={() => setIsReminderModalOpen(false)}
@@ -374,6 +402,46 @@ const MainApp: React.FC = () => {
         onSave={handleSaveReminder}
         availableNotes={notes}
       />
+
+      {/* Universal Global Search Modal */}
+      <GlobalSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        initialQuery={searchQuery}
+        onSelectNote={(note) => {
+          handleEditNote(note);
+        }}
+        onSelectUser={(userId) => {
+          setViewProfileUserId(userId);
+        }}
+        onSelectMedia={(media) => {
+          setCurrentPage('showcase');
+        }}
+      />
+
+      {/* User Profile & Work History Modal */}
+      <UserProfileModal
+        userId={viewProfileUserId}
+        currentUserId={user.id}
+        isOpen={Boolean(viewProfileUserId)}
+        onClose={() => setViewProfileUserId(null)}
+        onOpenChatWithUser={(chatTarget) => {
+          setCurrentPage('chat');
+        }}
+        onOpenEditProfile={() => setIsEditProfileOpen(true)}
+      />
+
+      {/* Edit Profile & Work History Modal */}
+      {isEditProfileOpen && (
+        <EditProfileModal
+          user={user}
+          isOpen={isEditProfileOpen}
+          onClose={() => setIsEditProfileOpen(false)}
+          onProfileUpdated={async (updated) => {
+            await refreshUser();
+          }}
+        />
+      )}
 
       {/* Floating Alert Toasts */}
       <ToastContainer />

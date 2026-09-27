@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Settings, 
   User as UserIcon, 
@@ -17,12 +17,16 @@ import {
   Cloud,
   Database,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Briefcase,
+  Camera,
+  Upload
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNotifications } from '../context/NotificationContext';
 import { NeumorphicButton } from '../components/common/NeumorphicButton';
+import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { api } from '../utils/api';
 import { sound } from '../utils/sound';
 import { 
@@ -43,6 +47,9 @@ export const SettingsPage: React.FC = () => {
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
 
   // Password change
   const [currentPassword, setCurrentPassword] = useState('');
@@ -224,22 +231,74 @@ export const SettingsPage: React.FC = () => {
 
       {/* Profile Overview Card */}
       <div className="neu-card p-6 bg-[#edf2f8] dark:bg-[#191b20] border border-black/5 dark:border-white/5 space-y-6">
-        <div className="flex items-center gap-4">
-          <img
-            src={avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username}`}
-            alt={user?.name}
-            className="w-16 h-16 rounded-2xl object-cover neu-raised bg-slate-300 dark:bg-slate-700"
-          />
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              {user?.name}
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              @{user?.username} • <span className="font-mono">{user?.email}</span>
-            </p>
-            <span className="inline-block mt-1 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full neu-inset text-emerald-500 bg-emerald-500/10">
-              Active Session
-            </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <img
+                src={avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username}`}
+                alt={user?.name}
+                className="w-16 h-16 rounded-2xl object-cover neu-raised bg-slate-300 dark:bg-slate-700"
+              />
+              <input
+                ref={avatarFileRef}
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploadingAvatar(true);
+                  try {
+                    const url = await firebaseService.uploadMediaFile(file, 'avatars');
+                    setAvatarUrl(url);
+                    sound.playChime();
+                  } catch (err) {
+                    console.error(err);
+                  } finally {
+                    setUploadingAvatar(false);
+                  }
+                }}
+                className="hidden"
+              />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                {user?.name}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                @{user?.username} • <span className="font-mono">{user?.email}</span>
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full neu-inset text-emerald-500 bg-emerald-500/10">
+                  Active Session
+                </span>
+                {user?.role && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full neu-inset text-indigo-500">
+                    {user.role}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => avatarFileRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="px-3.5 py-2 rounded-xl neu-btn text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Camera className="w-3.5 h-3.5 text-indigo-500" />
+              <span>{uploadingAvatar ? 'Uploading...' : 'Upload Photo'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowEditProfileModal(true)}
+              className="px-3.5 py-2 rounded-xl neu-btn text-xs font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>Work History & Career</span>
+            </button>
           </div>
         </div>
 
@@ -279,7 +338,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-3">
             <NeumorphicButton
               type="submit"
               variant="raised"
@@ -751,6 +810,20 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Profile & Career Modal */}
+      {showEditProfileModal && user && (
+        <EditProfileModal
+          user={user}
+          isOpen={showEditProfileModal}
+          onClose={() => setShowEditProfileModal(false)}
+          onProfileUpdated={async (updated) => {
+            setName(updated.name);
+            setAvatarUrl(updated.avatarUrl || '');
+            await refreshUser();
+          }}
+        />
       )}
     </div>
   );

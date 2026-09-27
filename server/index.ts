@@ -197,15 +197,38 @@ app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) 
   res.json({ user: req.user });
 });
 
-// Update profile / preferences
+// Update profile / preferences / work history
 app.put('/api/auth/profile', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { name, avatarUrl, preferences } = req.body;
+    const { 
+      name, 
+      avatarUrl, 
+      coverUrl, 
+      bio, 
+      role, 
+      location, 
+      skills, 
+      workHistory, 
+      githubUrl, 
+      linkedinUrl, 
+      websiteUrl, 
+      preferences 
+    } = req.body;
 
     const updates: Partial<User> = {};
     if (name) updates.name = name.trim();
     if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
+    if (coverUrl !== undefined) updates.coverUrl = coverUrl;
+    if (bio !== undefined) updates.bio = bio;
+    if (role !== undefined) updates.role = role;
+    if (location !== undefined) updates.location = location;
+    if (skills !== undefined) updates.skills = Array.isArray(skills) ? skills : [];
+    if (workHistory !== undefined) updates.workHistory = Array.isArray(workHistory) ? workHistory : [];
+    if (githubUrl !== undefined) updates.githubUrl = githubUrl;
+    if (linkedinUrl !== undefined) updates.linkedinUrl = linkedinUrl;
+    if (websiteUrl !== undefined) updates.websiteUrl = websiteUrl;
+
     if (preferences) {
       const currentUser = db.findUserById(userId);
       updates.preferences = {
@@ -219,9 +242,9 @@ app.put('/api/auth/profile', requireAuth, async (req: AuthenticatedRequest, res:
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    res.json({ user: db.toSafeUser(updated) });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to update profile.' });
+    res.json({ user: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to update profile.' });
   }
 });
 
@@ -820,6 +843,144 @@ app.get('/api/export', requireAuth, (req: AuthenticatedRequest, res: Response) =
     reminders,
   });
 });
+
+// ----------------------------------------------------
+// MEDIA & COMMUNITY POSTS (PHOTOS & VIDEOS)
+// ----------------------------------------------------
+
+// Get all media posts
+app.get('/api/media', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const { search, type, userId, onlyConnections } = req.query;
+  const posts = db.getMediaPosts({
+    search: search as string,
+    type: type as 'photo' | 'video',
+    userId: userId as string,
+    onlyConnections: onlyConnections === 'true',
+    currentUserId: req.user!.id,
+  });
+  res.json({ posts });
+});
+
+// Create media post (photo / video)
+app.post('/api/media', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = db.findUserById(req.user!.id);
+    if (!user) return res.status(401).json({ error: 'User not found' });
+
+    const { title, caption, type, mediaUrl, thumbnailUrl, tags, visibility } = req.body;
+    if (!mediaUrl) {
+      return res.status(400).json({ error: 'Media URL or file is required.' });
+    }
+
+    const post = await db.createMediaPost(
+      {
+        title,
+        caption,
+        type: type === 'video' ? 'video' : 'photo',
+        mediaUrl,
+        thumbnailUrl,
+        tags: Array.isArray(tags) ? tags : [],
+        visibility: visibility === 'connections' ? 'connections' : 'public',
+      },
+      user
+    );
+
+    res.status(201).json({ post });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to upload media post.' });
+  }
+});
+
+// Delete media post
+app.delete('/api/media/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const deleted = await db.deleteMediaPost(id, req.user!.id);
+  if (!deleted) {
+    return res.status(404).json({ error: 'Media post not found or unauthorized.' });
+  }
+  res.json({ success: true, message: 'Media post deleted.' });
+});
+
+// Like / unlike media post
+app.post('/api/media/:id/like', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const result = await db.likeMediaPost(id, req.user!.id);
+  if (!result) {
+    return res.status(404).json({ error: 'Media post not found.' });
+  }
+  res.json(result);
+});
+
+// Comment on media post
+app.post('/api/media/:id/comment', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { text } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Comment text cannot be empty.' });
+  }
+
+  const user = req.user!;
+  const post = await db.commentMediaPost(id, {
+    userId: user.id,
+    userName: user.name,
+    userUsername: user.username,
+    userAvatar: user.avatarUrl,
+    text: text.trim(),
+  });
+
+  if (!post) {
+    return res.status(404).json({ error: 'Media post not found.' });
+  }
+  res.json({ post });
+});
+
+// ----------------------------------------------------
+// USERS, PROFILES & CONNECT NETWORK
+// ----------------------------------------------------
+
+// List users with search and profile info
+app.get('/api/users', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const search = req.query.search as string;
+  const users = db.searchUsers(search || '', req.user!.id);
+  res.json({ users });
+});
+
+// Get user profile by ID with work history and media posts
+app.get('/api/users/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const user = db.findUserById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  const safe = db.toSafeUser(user);
+  const userMedia = db.getMediaPosts({ userId: user.id });
+  const isConnected = (req.user!.connections || []).includes(user.id);
+
+  res.json({ 
+    user: safe, 
+    media: userMedia, 
+    isConnected,
+    connectionsCount: (user.connections || []).length 
+  });
+});
+
+// Toggle connect with another user
+app.post('/api/users/:id/connect', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const targetId = req.params.id;
+  const result = await db.toggleConnection(req.user!.id, targetId);
+  if (!result) {
+    return res.status(400).json({ error: 'Could not connect with user.' });
+  }
+  res.json(result);
+});
+
+// ----------------------------------------------------
+// UNIVERSAL SEARCH (NOTES, PHOTOS, VIDEOS, PROFILES, WORK HISTORY)
+// ----------------------------------------------------
+app.get('/api/search', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const query = (req.query.q as string) || '';
+  const results = db.universalSearch(query, req.user!.id);
+  res.json(results);
+});
+
 
 // Serve client production build if exists
 const distPath = path.resolve(process.cwd(), 'dist');

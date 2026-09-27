@@ -1,5 +1,46 @@
 export type OnlineStatus = 'online' | 'idle' | 'offline';
 
+export interface WorkExperience {
+  id: string;
+  title: string;
+  company: string;
+  location?: string;
+  startDate: string;
+  endDate?: string;
+  current: boolean;
+  description: string;
+  skills?: string[];
+}
+
+export interface MediaComment {
+  id: string;
+  userId: string;
+  userName: string;
+  userUsername: string;
+  userAvatar?: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface MediaPost {
+  id: string;
+  userId: string;
+  userName: string;
+  userUsername: string;
+  userAvatar?: string;
+  userRole?: string;
+  title: string;
+  caption: string;
+  type: 'photo' | 'video';
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  tags: string[];
+  likes: string[];
+  comments: MediaComment[];
+  createdAt: string;
+  visibility: 'public' | 'connections';
+}
+
 export interface User {
   id: string;
   username: string;
@@ -7,10 +48,18 @@ export interface User {
   name: string;
   passwordHash: string;
   avatarUrl?: string;
+  coverUrl?: string;
   status?: OnlineStatus;
   customStatus?: string;
   bio?: string;
   role?: string;
+  location?: string;
+  skills?: string[];
+  workHistory?: WorkExperience[];
+  connections?: string[];
+  githubUrl?: string;
+  linkedinUrl?: string;
+  websiteUrl?: string;
   lastActive?: string;
   preferences: {
     theme: 'dark' | 'light' | 'system';
@@ -110,6 +159,7 @@ export interface DatabaseSchema {
   notes: Note[];
   reminders: Reminder[];
   messages: ChatMessage[];
+  mediaPosts: MediaPost[];
 }
 
 export interface SafeUser {
@@ -118,10 +168,18 @@ export interface SafeUser {
   email: string;
   name: string;
   avatarUrl?: string;
+  coverUrl?: string;
   status: OnlineStatus;
   customStatus?: string;
   bio?: string;
   role?: string;
+  location?: string;
+  skills?: string[];
+  workHistory?: WorkExperience[];
+  connections?: string[];
+  githubUrl?: string;
+  linkedinUrl?: string;
+  websiteUrl?: string;
   lastActive?: string;
   preferences: User['preferences'];
   createdAt: string;
