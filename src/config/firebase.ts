@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
+import { getAnalytics, isSupported, Analytics } from 'firebase/analytics';
 
 export interface FirebaseConfigOptions {
   apiKey?: string;
@@ -10,12 +11,24 @@ export interface FirebaseConfigOptions {
   storageBucket?: string;
   messagingSenderId?: string;
   appId?: string;
+  measurementId?: string;
 }
 
 const STORAGE_KEY = 'notenest_firebase_config';
 
+// Official project configuration for Note Nest
+export const DEFAULT_FIREBASE_CONFIG: FirebaseConfigOptions = {
+  apiKey: 'AIzaSyAHc6ZmCdBVSYkGV2403LciQFj9ghSmqKY',
+  authDomain: 'note-nest-67dc6.firebaseapp.com',
+  projectId: 'note-nest-67dc6',
+  storageBucket: 'note-nest-67dc6.firebasestorage.app',
+  messagingSenderId: '639716888697',
+  appId: '1:639716888697:web:f255d56607b136398304a8',
+  measurementId: 'G-PG34V730Y4',
+};
+
 /**
- * Retrieves the active Firebase configuration from localStorage or Vite environment variables.
+ * Retrieves the active Firebase configuration from localStorage, Vite environment variables, or default.
  */
 export function getActiveFirebaseConfig(): FirebaseConfigOptions {
   // Check localStorage first (in-app configured by user)
@@ -31,14 +44,15 @@ export function getActiveFirebaseConfig(): FirebaseConfigOptions {
     // ignore
   }
 
-  // Fallback to Vite env variables
+  // Fallback to Vite env variables or the official project defaults
   return {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || DEFAULT_FIREBASE_CONFIG.apiKey,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || DEFAULT_FIREBASE_CONFIG.authDomain,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || DEFAULT_FIREBASE_CONFIG.projectId,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || DEFAULT_FIREBASE_CONFIG.storageBucket,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || DEFAULT_FIREBASE_CONFIG.messagingSenderId,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || DEFAULT_FIREBASE_CONFIG.appId,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || DEFAULT_FIREBASE_CONFIG.measurementId,
   };
 }
 
@@ -129,6 +143,28 @@ export function getFirebaseStorage(): FirebaseStorage | null {
     }
   }
   return firebaseStorageInstance;
+}
+
+let firebaseAnalyticsInstance: Analytics | null = null;
+
+/**
+ * Retrieves the Firebase Analytics instance if supported.
+ */
+export async function getFirebaseAnalytics(): Promise<Analytics | null> {
+  const app = getFirebaseApp();
+  if (!app) return null;
+  if (firebaseAnalyticsInstance) return firebaseAnalyticsInstance;
+
+  try {
+    const supported = await isSupported();
+    if (supported) {
+      firebaseAnalyticsInstance = getAnalytics(app);
+      return firebaseAnalyticsInstance;
+    }
+  } catch (err) {
+    console.warn('Firebase Analytics not supported in this environment:', err);
+  }
+  return null;
 }
 
 export const googleProvider = new GoogleAuthProvider();
