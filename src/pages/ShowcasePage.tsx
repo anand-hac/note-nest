@@ -17,7 +17,8 @@ import {
   Maximize2,
   ExternalLink,
   Send,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { MediaPost, User } from '../types';
 import { api } from '../utils/api';
@@ -50,6 +51,7 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
   const [uploadVisibility, setUploadVisibility] = useState<'public' | 'connections'>('public');
   const [uploadingFile, setUploadingFile] = useState(false);
   const [savingPost, setSavingPost] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Active User Profile Modal
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -116,13 +118,15 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingFile(true);
+    setUploadError(null);
     sound.playClick();
     try {
       const url = await firebaseService.uploadMediaFile(file, mediaType === 'video' ? 'videos' : 'photos');
       setUploadMediaUrl(url);
       sound.playChime();
-    } catch (err) {
+    } catch (err: any) {
       console.error('File upload error:', err);
+      setUploadError(err.message || 'Could not process media file. Try another file or paste URL.');
     } finally {
       setUploadingFile(false);
       if (e.target) e.target.value = '';
@@ -134,6 +138,7 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
     if (!uploadTitle.trim() || !uploadMediaUrl.trim()) return;
 
     setSavingPost(true);
+    setUploadError(null);
     sound.playClick();
     try {
       const tags = uploadTags
@@ -150,11 +155,7 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
         visibility: uploadVisibility,
       });
 
-      // Also mirror to Firebase Firestore
-      if (firebaseService.isAvailable()) {
-        await firebaseService.syncMediaPost(res.post);
-      }
-
+      // Update feed and close modal immediately (0 delay)
       setPosts(prev => [res.post, ...prev]);
       sound.playChime();
       setIsUploadOpen(false);
@@ -162,8 +163,17 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
       setUploadCaption('');
       setUploadMediaUrl('');
       setUploadTags('');
-    } catch (err) {
+      setUploadError(null);
+
+      // Non-blocking background Firestore sync
+      if (firebaseService.isAvailable()) {
+        firebaseService.syncMediaPost(res.post).catch(err => {
+          console.warn('Background media sync warning:', err);
+        });
+      }
+    } catch (err: any) {
       console.error('Failed to create media post:', err);
+      setUploadError(err.message || 'Failed to publish media post. Try a smaller file or direct link.');
     } finally {
       setSavingPost(false);
     }
@@ -561,6 +571,13 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
 
             {/* Modal Form */}
             <form onSubmit={handleCreatePost} className="p-6 overflow-y-auto flex-1 space-y-4">
+              {uploadError && (
+                <div className="p-3 rounded-xl neu-inset bg-red-500/10 border border-red-500/20 text-xs text-red-500 font-medium flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+
               {/* Media Type Switcher */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300">

@@ -277,9 +277,26 @@ export const firebaseService = {
     if (!db) return;
     try {
       const postRef = doc(db, 'media_posts', post.id);
-      await setDoc(postRef, post, { merge: true });
-    } catch (err) {
-      console.warn('Firebase media post sync warning:', err);
+
+      // Do not store Base64 strings larger than 200KB in Firestore (1MB limit)
+      const isLargeDataUrl = post.mediaUrl && post.mediaUrl.startsWith('data:') && post.mediaUrl.length > 200000;
+      const safeMediaUrl = isLargeDataUrl ? 'local_media_storage' : post.mediaUrl;
+      const safeThumbnail = (post.thumbnailUrl && post.thumbnailUrl.length > 200000) ? '' : post.thumbnailUrl;
+
+      const firestorePost = {
+        ...post,
+        mediaUrl: safeMediaUrl,
+        thumbnailUrl: safeThumbnail,
+      };
+
+      const syncPromise = setDoc(postRef, firestorePost, { merge: true });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Firestore media sync timeout')), 1500)
+      );
+
+      await Promise.race([syncPromise, timeoutPromise]);
+    } catch (err: any) {
+      console.info('Firebase media post sync skipped/non-blocking:', err?.message || err);
     }
   },
 
