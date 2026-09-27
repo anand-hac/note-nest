@@ -167,6 +167,7 @@ export const SettingsPage: React.FC = () => {
                     console.error(err);
                   } finally {
                     setUploadingAvatar(false);
+                    if (e.target) e.target.value = '';
                   }
                 }}
                 className="hidden"

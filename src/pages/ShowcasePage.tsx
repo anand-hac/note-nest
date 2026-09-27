@@ -116,6 +116,7 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingFile(true);
+    sound.playClick();
     try {
       const url = await firebaseService.uploadMediaFile(file, mediaType === 'video' ? 'videos' : 'photos');
       setUploadMediaUrl(url);
@@ -124,6 +125,7 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
       console.error('File upload error:', err);
     } finally {
       setUploadingFile(false);
+      if (e.target) e.target.value = '';
     }
   };
 

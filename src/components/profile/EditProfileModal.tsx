@@ -80,6 +80,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingAvatar(true);
+    sound.playClick();
     try {
       const url = await firebaseService.uploadMediaFile(file, 'avatars');
       setAvatarUrl(url);
@@ -88,6 +89,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       console.error('Failed to upload avatar:', err);
     } finally {
       setUploadingAvatar(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -95,6 +97,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingCover(true);
+    sound.playClick();
     try {
       const url = await firebaseService.uploadMediaFile(file, 'covers');
       setCoverUrl(url);
@@ -103,6 +106,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       console.error('Failed to upload cover:', err);
     } finally {
       setUploadingCover(false);
+      if (e.target) e.target.value = '';
     }
   };
 
