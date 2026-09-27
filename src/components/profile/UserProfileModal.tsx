@@ -102,47 +102,50 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         className="w-full max-w-2xl bg-[#edf2f8] dark:bg-[#191b20] rounded-3xl neu-card overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header Cover Banner */}
-        <div className="relative h-36 sm:h-44 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 overflow-hidden">
-          {user?.coverUrl ? (
-            <img 
-              src={user.coverUrl} 
-              alt="Profile Cover" 
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full opacity-40 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
-          )}
+        {/* Scrollable Container containing both Cover & Body so avatar is never clipped */}
+        <div className="overflow-y-auto flex-1 flex flex-col">
+          {/* Header Cover Banner */}
+          <div className="relative h-44 sm:h-52 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 shrink-0">
+            {user?.coverUrl ? (
+              <img 
+                src={user.coverUrl} 
+                alt="Profile Cover" 
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full opacity-40 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
+            )}
 
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition cursor-pointer backdrop-blur-sm"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 z-30 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition cursor-pointer backdrop-blur-md shadow-lg"
+              title="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-        {/* Profile Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6">
-          {loading ? (
-            <div className="py-20 text-center text-slate-400">Loading user profile...</div>
-          ) : user ? (
-            <>
-              {/* Profile Top Row (Avatar & Primary Actions) */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-16 sm:-mt-20">
-                <div className="relative">
-                  <img
-                    src={user.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`}
-                    alt={user.name}
-                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover ring-4 ring-[#edf2f8] dark:ring-[#191b20] neu-raised-sm bg-[#edf2f8] dark:bg-[#191b20]"
-                  />
-                  <span
-                    className={`absolute bottom-2 right-2 w-4 h-4 rounded-full ring-2 ring-white dark:ring-black ${
-                      user.status === 'online' ? 'bg-emerald-500' : user.status === 'idle' ? 'bg-amber-400' : 'bg-slate-400'
-                    }`}
-                  />
-                </div>
+          {/* Profile Content Body */}
+          <div className="p-6 pt-0 space-y-6 flex-1">
+            {loading ? (
+              <div className="py-20 text-center text-slate-400">Loading user profile...</div>
+            ) : user ? (
+              <>
+                {/* Profile Top Row (Avatar & Primary Actions) - prominent & fully visible */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-16 sm:-mt-20 relative z-20">
+                  <div className="relative shrink-0">
+                    <img
+                      src={user.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`}
+                      alt={user.name}
+                      className="w-28 h-28 sm:w-32 sm:h-32 aspect-square rounded-3xl object-cover ring-4 ring-[#edf2f8] dark:ring-[#191b20] neu-raised shadow-2xl bg-[#edf2f8] dark:bg-[#191b20]"
+                    />
+                    <span
+                      className={`absolute bottom-2 right-2 w-4 h-4 rounded-full ring-2 ring-white dark:ring-black ${
+                        user.status === 'online' ? 'bg-emerald-500' : user.status === 'idle' ? 'bg-amber-400' : 'bg-slate-400'
+                      }`}
+                    />
+                  </div>
 
                 <div className="flex items-center gap-2.5 w-full sm:w-auto">
                   {isMe ? (
@@ -429,5 +432,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
