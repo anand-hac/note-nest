@@ -19,6 +19,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// Root API check & health
+app.get('/api', (req, res) => {
+  res.json({ status: 'ok', name: 'Note Nest API', version: '1.0.0' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
 // ----------------------------------------------------
 // AUTHENTICATION ROUTES
 // ----------------------------------------------------
@@ -824,6 +833,10 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Note Nest backend server running on http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Note Nest backend server running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;

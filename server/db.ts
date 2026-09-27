@@ -3,7 +3,9 @@ import path from 'path';
 import bcrypt from 'bcryptjs';
 import { DatabaseSchema, User, Note, Reminder, SafeUser, ChatMessage, OnlineStatus } from './types.js';
 
-const DB_FILE = path.resolve(process.cwd(), 'data', 'db.json');
+const DB_FILE = process.env.VERCEL
+  ? path.resolve('/tmp', 'db.json')
+  : path.resolve(process.cwd(), 'data', 'db.json');
 
 // Initial seed data
 const getInitialData = (): DatabaseSchema => {
@@ -139,6 +141,16 @@ export class Database {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
         if (!parsed.messages) parsed.messages = [];
+        return parsed;
+      }
+
+      // If running on Vercel and /tmp/db.json doesn't exist yet, check bundled data/db.json
+      const bundledDb = path.resolve(process.cwd(), 'data', 'db.json');
+      if (fs.existsSync(bundledDb)) {
+        const raw = fs.readFileSync(bundledDb, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (!parsed.messages) parsed.messages = [];
+        this.saveDirect(parsed);
         return parsed;
       }
     } catch (err) {
