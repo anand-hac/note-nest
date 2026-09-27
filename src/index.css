@@ -1,0 +1,249 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #edf2f8;
+    --card-main: #edf2f8;
+    --text-primary: #18191c;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border-color: rgba(200, 210, 225, 0.4);
+    
+    /* Neumorphic Shadows - Light */
+    --neu-raised: 6px 6px 14px #c5ceda, -6px -6px 14px #ffffff;
+    --neu-raised-sm: 3px 3px 8px #c9d2de, -3px -3px 8px #ffffff;
+    --neu-raised-lg: 12px 12px 28px #bcc7d6, -12px -12px 28px #ffffff;
+    --neu-inset: inset 3px 3px 6px #c5ceda, inset -3px -3px 6px #ffffff;
+    --neu-inset-sm: inset 2px 2px 4px #c9d2de, inset -2px -2px 4px #ffffff;
+    --neu-convex: linear-gradient(145deg, #ffffff, #dbe2ec);
+    --neu-concave: linear-gradient(145deg, #dbe2ec, #ffffff);
+  }
+
+  .dark {
+    --bg-main: #141518;
+    --card-main: #191b20;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: rgba(255, 255, 255, 0.05);
+
+    /* Neumorphic Shadows - Dark (Monochrome / Charcoal / Black) */
+    --neu-raised: 7px 7px 16px #0d0e10, -7px -7px 16px #23262d;
+    --neu-raised-sm: 4px 4px 9px #0e0f11, -4px -4px 9px #22252c;
+    --neu-raised-lg: 14px 14px 30px #090a0c, -14px -14px 30px #282c35;
+    --neu-inset: inset 4px 4px 8px #0d0e10, inset -4px -4px 8px #24272f;
+    --neu-inset-sm: inset 2px 2px 5px #0e0f11, inset -2px -2px 5px #22252c;
+    --neu-convex: linear-gradient(145deg, #22252d, #14161a);
+    --neu-concave: linear-gradient(145deg, #14161a, #22252d);
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    margin: 0;
+    overflow-x: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+}
+
+/* Handwritten Typography Classes */
+.font-handwritten {
+  font-family: 'Caveat', 'Kalam', 'Patrick Hand', cursive, sans-serif;
+}
+
+.font-kalam {
+  font-family: 'Kalam', 'Caveat', cursive, sans-serif;
+}
+
+/* Custom Neumorphic utility classes */
+.neu-raised {
+  box-shadow: var(--neu-raised);
+}
+
+.neu-raised-sm {
+  box-shadow: var(--neu-raised-sm);
+}
+
+.neu-raised-lg {
+  box-shadow: var(--neu-raised-lg);
+}
+
+.neu-inset {
+  box-shadow: var(--neu-inset);
+}
+
+.neu-inset-sm {
+  box-shadow: var(--neu-inset-sm);
+}
+
+.neu-btn {
+  box-shadow: var(--neu-raised-sm);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neu-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--neu-raised);
+}
+
+.neu-btn:active, .neu-btn-active {
+  box-shadow: var(--neu-inset-sm);
+  transform: translateY(0);
+}
+
+.neu-card {
+  box-shadow: var(--neu-raised);
+  border-radius: 1.25rem;
+  background-color: var(--card-main);
+  transition: box-shadow 0.25s ease, transform 0.2s ease;
+}
+
+.neu-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--neu-raised-lg);
+}
+
+.neu-input {
+  box-shadow: var(--neu-inset-sm);
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.neu-input:focus {
+  outline: none;
+  box-shadow: var(--neu-inset);
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+/* Realistic Post-It Sticky Note Styling */
+.sticky-note-card {
+  position: relative;
+  border-radius: 2px 2px 24px 2px;
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 8px 20px -3px rgba(0, 0, 0, 0.24),
+    3px 18px 28px -4px rgba(0, 0, 0, 0.28);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+
+.sticky-note-card:hover {
+  transform: translateY(-5px) rotate(0deg) scale(1.02);
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.15),
+    0 16px 32px -4px rgba(0, 0, 0, 0.32),
+    4px 24px 38px -6px rgba(0, 0, 0, 0.35);
+  z-index: 10;
+}
+
+/* Translucent adhesive strip at top of post-it */
+.sticky-tape {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.4);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  pointer-events: none;
+}
+
+/* Curled corner illusion */
+.sticky-corner-fold {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.15) 50%, rgba(0, 0, 0, 0.08) 100%);
+  border-bottom-right-radius: 24px;
+  pointer-events: none;
+}
+
+/* Sticky Note Palette Variations */
+.sticky-color-yellow {
+  background: linear-gradient(178deg, #fff37a 0%, #ffeb3b 45%, #fade1e 100%);
+  color: #211c00;
+}
+
+.sticky-color-orange {
+  background: linear-gradient(178deg, #ffedd5 0%, #fed7aa 45%, #fb923c 100%);
+  color: #431407;
+}
+
+.sticky-color-coral {
+  background: linear-gradient(178deg, #ffe4e6 0%, #fecdd3 45%, #fb7185 100%);
+  color: #4c0519;
+}
+
+.sticky-color-pink {
+  background: linear-gradient(178deg, #fed7e2 0%, #fbb6ce 45%, #f9a3be 100%);
+  color: #290614;
+}
+
+.sticky-color-magenta {
+  background: linear-gradient(178deg, #fae8ff 0%, #f0abfc 45%, #e879f9 100%);
+  color: #3b0764;
+}
+
+.sticky-color-purple {
+  background: linear-gradient(178deg, #f3e8ff 0%, #e9d5ff 45%, #dcbbfc 100%);
+  color: #260b54;
+}
+
+.sticky-color-blue {
+  background: linear-gradient(178deg, #e0f2fe 0%, #bae6fd 45%, #7dd3fc 100%);
+  color: #052a42;
+}
+
+.sticky-color-aqua {
+  background: linear-gradient(178deg, #ecfeff 0%, #a5f3fc 45%, #67e8f9 100%);
+  color: #083344;
+}
+
+.sticky-color-green {
+  background: linear-gradient(178deg, #dcfce7 0%, #bbf7d0 45%, #86efac 100%);
+  color: #032b14;
+}
+
+.sticky-color-lime {
+  background: linear-gradient(178deg, #f7fee7 0%, #d9f99d 45%, #bef264 100%);
+  color: #1a2e05;
+}
+
+.sticky-color-sand {
+  background: linear-gradient(178deg, #fbf7f4 0%, #ede0d4 45%, #ddb892 100%);
+  color: #3b2414;
+}
+
+.sticky-color-charcoal {
+  background: linear-gradient(178deg, #272a33 0%, #1e2027 45%, #15171c 100%);
+  color: #f8fafc;
+}
+
+.sticky-color-snow {
+  background: linear-gradient(178deg, #ffffff 0%, #f8fafc 45%, #edf2f7 100%);
+  color: #0f172a;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
