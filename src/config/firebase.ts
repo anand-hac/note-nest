@@ -47,7 +47,7 @@ export function getActiveFirebaseConfig(): FirebaseConfigOptions {
  */
 export function isFirebaseConfigured(): boolean {
   const config = getActiveFirebaseConfig();
-  return Boolean(config.apiKey && config.projectId);
+  return Boolean(config.apiKey);
 }
 
 let firebaseAppInstance: FirebaseApp | null = null;
@@ -60,13 +60,19 @@ let firebaseStorageInstance: FirebaseStorage | null = null;
  */
 export function getFirebaseApp(): FirebaseApp | null {
   const config = getActiveFirebaseConfig();
-  if (!config.apiKey || !config.projectId) {
+  if (!config.apiKey) {
     return null;
   }
 
+  const effectiveConfig = {
+    ...config,
+    projectId: config.projectId || 'note-nest-app',
+    authDomain: config.authDomain || (config.projectId ? `${config.projectId}.firebaseapp.com` : 'note-nest-app.firebaseapp.com'),
+  };
+
   try {
     if (getApps().length === 0) {
-      firebaseAppInstance = initializeApp(config);
+      firebaseAppInstance = initializeApp(effectiveConfig);
     } else {
       firebaseAppInstance = getApp();
     }

@@ -33,11 +33,6 @@ export const AuthPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Google Account Chooser Modal state
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleCustomEmail, setGoogleCustomEmail] = useState('');
-  const [googleCustomName, setGoogleCustomName] = useState('');
-
   // Demo users list for 1-click test
   const [demoUsers, setDemoUsers] = useState<Array<{ username: string; email: string; name: string; role: string }>>([]);
 
@@ -77,65 +72,34 @@ export const AuthPage: React.FC = () => {
   const handleGoogleSignIn = async () => {
     sound.playClick();
     setError(null);
-    if (firebaseService.isAvailable()) {
-      setLoading(true);
-      try {
-        const fbUser = await firebaseService.loginWithGoogle();
-        if (fbUser.email) {
-          await loginWithGoogle({
-            email: fbUser.email,
-            name: fbUser.displayName || fbUser.email.split('@')[0],
-            avatarUrl: fbUser.photoURL || undefined,
-            googleId: fbUser.uid,
-          });
-        }
-      } catch (err: any) {
-        console.warn('Firebase popup failed or blocked, opening Google account chooser:', err);
-        setShowGoogleModal(true);
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    try {
+      if (!firebaseService.isAvailable()) {
+        throw new Error('Firebase credentials are not configured yet. Please configure your Firebase API key.');
       }
-    } else {
-      // In offline/demo mode, open Google Account Chooser modal immediately!
-      setShowGoogleModal(true);
-    }
-  };
-
-  const handleSelectQuickGoogleAccount = async (acctEmail: string, acctName: string, avatarSeed: string) => {
-    sound.playClick();
-    setLoading(true);
-    setError(null);
-    try {
-      await loginWithGoogle({
-        email: acctEmail,
-        name: acctName,
-        avatarUrl: `https://api.dicebear.com/7.x/identicon/svg?seed=${avatarSeed}`,
-      });
-      setShowGoogleModal(false);
+      const fbUser = await firebaseService.loginWithGoogle();
+      if (fbUser.email) {
+        await loginWithGoogle({
+          email: fbUser.email,
+          name: fbUser.displayName || fbUser.email.split('@')[0],
+          avatarUrl: fbUser.photoURL || undefined,
+          googleId: fbUser.uid,
+        });
+        sound.playChime();
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in with Google account.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCustomGoogleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!googleCustomEmail.trim()) return;
-    sound.playClick();
-    setLoading(true);
-    setError(null);
-    try {
-      const email = googleCustomEmail.trim().toLowerCase();
-      const derivedName = googleCustomName.trim() || email.split('@')[0];
-      await loginWithGoogle({
-        email,
-        name: derivedName,
-        avatarUrl: `https://api.dicebear.com/7.x/identicon/svg?seed=${email}`,
-      });
-      setShowGoogleModal(false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign in with Google account.');
+      console.error('Firebase Google sign-in error:', err);
+      let msg = err.message || 'Google sign-in failed.';
+      if (err.code === 'auth/popup-closed-by-user') {
+        msg = 'Google Sign-In popup was closed before completing.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        msg = 'This domain is not in your Firebase Console Authorized Domains list (Authentication -> Settings -> Authorized Domains).';
+      } else if (err.code === 'auth/api-key-not-valid' || err.code === 'auth/invalid-api-key') {
+        msg = 'The Firebase API key is invalid. Please check your Firebase Console project settings.';
+      } else if (err.code === 'auth/popup-blocked') {
+        msg = 'Popup was blocked by your browser. Please allow popups for Google Sign-In.';
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -391,126 +355,6 @@ export const AuthPage: React.FC = () => {
           <span>Encrypted Session • Zero Data Leakage • Neumorphic Design</span>
         </div>
       </div>
-
-      {/* Google Account Selector Modal */}
-      {showGoogleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="w-full max-w-md neu-card bg-[#191b20] border border-white/10 p-6 rounded-3xl shadow-2xl space-y-5 text-left">
-            <div className="flex items-center justify-between pb-3 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <svg className="w-6 h-6" viewBox="0 0 24 24">
-                  <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.4 9 5 12 5z" />
-                  <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" />
-                  <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.8s.2-2.1.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z" />
-                  <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.4-6.4-5.2L1.9 16c1.8 3.7 5.6 7 10.1 7z" />
-                </svg>
-                <div>
-                  <h3 className="text-base font-bold text-white">
-                    Sign in with Google
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    To start fresh in Note Nest Workspace
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowGoogleModal(false)}
-                className="p-2 rounded-xl neu-btn text-slate-400 hover:text-white cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-3.5 rounded-2xl neu-inset bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 space-y-1">
-              <div className="font-bold flex items-center gap-1.5 text-emerald-400">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>100% Clean Slate Guarantee</span>
-              </div>
-              <p className="text-[11px] text-emerald-300/90 leading-relaxed">
-                Your new Google account starts completely from scratch with <strong>0 notes, 0 reminders, and zero clutter</strong>.
-              </p>
-            </div>
-
-            {/* 1-Click Instant Google Sign-In */}
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                Fast Track (1-Click)
-              </span>
-              <button
-                type="button"
-                onClick={() => handleSelectQuickGoogleAccount('google.member@gmail.com', 'Google User', 'google_fast')}
-                disabled={loading}
-                className="w-full p-3 rounded-2xl neu-btn bg-[#21242d] hover:bg-[#282c37] flex items-center justify-between transition text-left cursor-pointer border border-white/10 group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center p-1.5 shadow-sm">
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.4 9 5 12 5z" />
-                      <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" />
-                      <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.8s.2-2.1.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z" />
-                      <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.4-6.4-5.2L1.9 16c1.8 3.7 5.6 7 10.1 7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-white block group-hover:text-emerald-400 transition">
-                      Continue as Google User
-                    </span>
-                    <span className="text-[11px] text-slate-400">google.member@gmail.com</span>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full neu-inset text-emerald-400">
-                  Instant Access ➔
-                </span>
-              </button>
-            </div>
-
-            {/* Custom Google Account input */}
-            <div className="pt-3 border-t border-white/5 space-y-2.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                Or enter your own Gmail / Google Account
-              </span>
-              <form onSubmit={handleCustomGoogleSubmit} className="space-y-2.5">
-                <div>
-                  <input
-                    type="email"
-                    required
-                    placeholder="Enter your Gmail (e.g. yourname@gmail.com)"
-                    value={googleCustomEmail}
-                    onChange={e => setGoogleCustomEmail(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl neu-input text-white placeholder-slate-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Your Display Name (e.g. Anand)"
-                    value={googleCustomName}
-                    onChange={e => setGoogleCustomName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 text-xs rounded-xl neu-input text-white placeholder-slate-500 focus:outline-none"
-                  />
-                </div>
-                <NeumorphicButton
-                  type="submit"
-                  variant="raised"
-                  size="md"
-                  disabled={loading || !googleCustomEmail.trim()}
-                  className="w-full bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs justify-center cursor-pointer py-2.5"
-                >
-                  <span>Sign In & Start From Scratch</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </NeumorphicButton>
-              </form>
-            </div>
-
-            {/* Firebase Status Note */}
-            <div className="pt-2 border-t border-white/5 text-[10px] text-slate-500 flex items-center justify-between">
-              <span>Firebase Cloud: Ready for config in Settings</span>
-              <span className="text-emerald-400 font-medium">● Local Mode Active</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
