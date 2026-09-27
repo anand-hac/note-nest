@@ -177,14 +177,17 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
       const res = await api.updateProfile(payload);
       
-      // Also sync to Firebase Firestore if configured
-      if (firebaseService.isAvailable()) {
-        await firebaseService.syncUserProfile(res.user);
-      }
-
+      // Update UI and close modal immediately (0 millisecond delay)
       sound.playChime();
       onProfileUpdated(res.user);
       onClose();
+
+      // Non-blocking background Firestore sync
+      if (firebaseService.isAvailable()) {
+        firebaseService.syncUserProfile(res.user).catch(err => {
+          console.warn('Background profile sync:', err);
+        });
+      }
     } catch (err: any) {
       console.error('Failed to update profile:', err);
     } finally {

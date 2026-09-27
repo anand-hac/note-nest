@@ -213,13 +213,18 @@ export const firebaseService = {
     if (!db) return;
     try {
       const userRef = doc(db, 'users', user.id);
-      await setDoc(userRef, {
+      
+      // Clean large dataURLs so Firestore 1MB doc limits are not exceeded
+      const safeAvatar = (user.avatarUrl && user.avatarUrl.length > 200000) ? '' : (user.avatarUrl || '');
+      const safeCover = (user.coverUrl && user.coverUrl.length > 200000) ? '' : (user.coverUrl || '');
+
+      const syncPromise = setDoc(userRef, {
         id: user.id,
         username: user.username,
         email: user.email,
         name: user.name,
-        avatarUrl: user.avatarUrl || '',
-        coverUrl: user.coverUrl || '',
+        avatarUrl: safeAvatar,
+        coverUrl: safeCover,
         status: user.status || 'online',
         customStatus: user.customStatus || '',
         bio: user.bio || '',
@@ -234,8 +239,14 @@ export const firebaseService = {
         lastActive: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }, { merge: true });
-    } catch (err) {
-      console.warn('Firebase user profile sync warning:', err);
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Firestore sync timeout')), 1500)
+      );
+
+      await Promise.race([syncPromise, timeoutPromise]);
+    } catch (err: any) {
+      console.info('Firebase user profile sync skipped/non-blocking:', err?.message || err);
     }
   },
 
