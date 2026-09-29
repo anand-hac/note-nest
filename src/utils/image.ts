@@ -56,6 +56,8 @@ export async function optimizeImageFile(file: File, maxDimension = 1200, quality
 /**
  * Prepares and optimizes a media file for storage and upload directly to the REST API / PostgreSQL backend.
  */
-export async function uploadMediaFile(file: File, _folder = 'media'): Promise<string> {
-  return await optimizeImageFile(file);
+export async function uploadMediaFile(file: File, folder = 'media'): Promise<string> {
+  const maxDim = folder === 'avatars' ? 400 : 1280;
+  const quality = folder === 'avatars' ? 0.82 : 0.8;
+  return await optimizeImageFile(file, maxDim, quality);
 }

@@ -2,7 +2,7 @@ import { query } from './postgres.js';
 import { User, Note, Reminder, MediaPost, ChatMessage, SafeUser } from '../types.js';
 
 // Convert user DB row to User object
-function mapUserRow(row: any): User {
+export function mapUserRow(row: any): User {
   return {
     id: row.id,
     username: row.username,
@@ -33,7 +33,7 @@ function mapUserRow(row: any): User {
 }
 
 // Convert note DB row to Note object
-function mapNoteRow(row: any): Note {
+export function mapNoteRow(row: any): Note {
   return {
     id: row.id,
     userId: row.user_id,
@@ -55,7 +55,7 @@ function mapNoteRow(row: any): Note {
 }
 
 // Convert reminder DB row to Reminder object
-function mapReminderRow(row: any): Reminder {
+export function mapReminderRow(row: any): Reminder {
   return {
     id: row.id,
     userId: row.user_id,
@@ -73,7 +73,7 @@ function mapReminderRow(row: any): Reminder {
 }
 
 // Convert media DB row to MediaPost object
-function mapMediaRow(row: any): MediaPost {
+export function mapMediaRow(row: any): MediaPost {
   return {
     id: row.id,
     userId: row.user_id,
@@ -156,7 +156,13 @@ export const postgresRepo = {
   },
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
-    const existing = await this.findUserById(id);
+    let existing = await this.findUserById(id);
+    if (!existing) {
+      const fallback = await query('SELECT * FROM users WHERE id = $1 LIMIT 1', [id]);
+      if (fallback.rows[0]) {
+        existing = mapUserRow(fallback.rows[0]);
+      }
+    }
     if (!existing) return null;
 
     const merged = { ...existing, ...updates };

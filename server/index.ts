@@ -4,7 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './db.js';
-import { initPostgresSchema } from './db/postgres.js';
+import { initPostgresSchema, isPostgresAvailable } from './db/postgres.js';
+import { postgresRepo } from './db/postgresRepository.js';
 import { requireAuth, AuthenticatedRequest, generateToken, hashPassword, comparePassword } from './auth.js';
 import { Note, Reminder, User, Collaborator, ChatMessage, OnlineStatus } from './types.js';
 
@@ -139,6 +140,15 @@ app.post('/api/auth/google', async (req, res) => {
 
     const cleanEmail = email.trim().toLowerCase();
     let existingUser = db.findUserByEmail(cleanEmail);
+    if (!existingUser && isPostgresAvailable()) {
+      try {
+        const pgUser = await postgresRepo.findUserByEmail(cleanEmail);
+        if (pgUser) {
+          db.syncUserFromPg(pgUser);
+          existingUser = pgUser;
+        }
+      } catch (e) {}
+    }
     let isBrandNew = false;
 
     if (!existingUser) {
@@ -199,11 +209,13 @@ app.post('/api/auth/google', async (req, res) => {
 
 // Get current user profile (supports both /api/auth/me and /api/users/me)
 app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  res.json({ user: req.user });
+  const current = db.findUserById(req.user!.id);
+  res.json({ user: current ? db.toSafeUser(current) : req.user });
 });
 
 app.get('/api/users/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  res.json({ user: req.user });
+  const current = db.findUserById(req.user!.id);
+  res.json({ user: current ? db.toSafeUser(current) : req.user });
 });
 
 // Update profile / preferences / work history
@@ -957,8 +969,17 @@ app.get('/api/users', requireAuth, (req: AuthenticatedRequest, res: Response) =>
 });
 
 // Get user profile by ID with work history and media posts
-app.get('/api/users/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const user = db.findUserById(req.params.id);
+app.get('/api/users/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  let user = db.findUserById(req.params.id);
+  if (!user && isPostgresAvailable()) {
+    try {
+      const pgUser = await postgresRepo.findUserById(req.params.id);
+      if (pgUser) {
+        db.syncUserFromPg(pgUser);
+        user = pgUser;
+      }
+    } catch (e) {}
+  }
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
   const safe = db.toSafeUser(user);

@@ -388,6 +388,7 @@ const MainApp: React.FC = () => {
       {/* User Profile & Work History Modal */}
       <UserProfileModal
         userId={viewProfileUserId}
+        currentUser={user}
         currentUserId={user.id}
         isOpen={Boolean(viewProfileUserId)}
         onClose={() => setViewProfileUserId(null)}

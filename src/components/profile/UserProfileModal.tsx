@@ -32,6 +32,7 @@ const LinkedinIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3
 
 interface UserProfileModalProps {
   userId: string | null;
+  currentUser?: User | null;
   currentUserId: string;
   isOpen: boolean;
   onClose: () => void;
@@ -41,13 +42,17 @@ interface UserProfileModalProps {
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   userId,
+  currentUser,
   currentUserId,
   isOpen,
   onClose,
   onOpenChatWithUser,
   onOpenEditProfile,
 }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    if (currentUser && currentUser.id === userId) return currentUser;
+    return null;
+  });
   const [media, setMedia] = useState<MediaPost[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionsCount, setConnectionsCount] = useState(0);
@@ -55,8 +60,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [connecting, setConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState<'experience' | 'media'>('experience');
 
+  // Immediately synchronize with latest user if viewing one's own profile
+  useEffect(() => {
+    if (currentUser && currentUser.id === userId) {
+      setUser(prev => prev ? { ...prev, ...currentUser } : currentUser);
+    }
+  }, [currentUser, userId]);
+
   useEffect(() => {
     if (!isOpen || !userId) return;
+    if (currentUser && currentUser.id === userId) {
+      setUser(currentUser);
+    }
     setLoading(true);
     api.getUserProfile(userId)
       .then(res => {
@@ -67,7 +82,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       })
       .catch(err => console.error('Failed to load profile:', err))
       .finally(() => setLoading(false));
-  }, [isOpen, userId]);
+  }, [isOpen, userId, currentUser]);
 
   if (!isOpen) return null;
 
@@ -110,6 +125,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <img 
                 src={user.coverUrl} 
                 alt="Profile Cover" 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                }}
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -138,6 +157,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <img
                       src={user.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`}
                       alt={user.name}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`;
+                      }}
                       className="w-28 h-28 sm:w-32 sm:h-32 aspect-square rounded-3xl object-cover ring-4 ring-[#edf2f8] dark:ring-[#191b20] neu-raised shadow-2xl bg-[#edf2f8] dark:bg-[#191b20]"
                     />
                     <span

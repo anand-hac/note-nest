@@ -288,6 +288,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               <img
                 src={user?.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username}`}
                 alt={user?.name || 'User'}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username}`;
+                }}
                 className="w-7 h-7 rounded-xl object-cover bg-slate-300 dark:bg-slate-700"
               />
               <span className="text-xs font-semibold hidden md:inline-block pr-1 max-w-[100px] truncate">

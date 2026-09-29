@@ -40,6 +40,13 @@ export const SettingsPage: React.FC = () => {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarFileRef = useRef<HTMLInputElement>(null);
 
+  React.useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setAvatarUrl(user.avatarUrl || '');
+    }
+  }, [user]);
+
   // Password change
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -149,6 +156,10 @@ export const SettingsPage: React.FC = () => {
               <img
                 src={avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username}`}
                 alt={user?.name}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username}`;
+                }}
                 className="w-16 h-16 rounded-2xl object-cover neu-raised bg-slate-300 dark:bg-slate-700"
               />
               <input
@@ -162,9 +173,13 @@ export const SettingsPage: React.FC = () => {
                   try {
                     const url = await uploadMediaFile(file, 'avatars');
                     setAvatarUrl(url);
+                    await api.updateProfile({ avatarUrl: url });
+                    await refreshUser();
                     sound.playChime();
-                  } catch (err) {
+                    setProfileMsg('Profile photo updated successfully!');
+                  } catch (err: any) {
                     console.error(err);
+                    setProfileMsg(err.message || 'Failed to upload photo.');
                   } finally {
                     setUploadingAvatar(false);
                     if (e.target) e.target.value = '';

@@ -15,7 +15,7 @@ import {
   WorkExperience
 } from './types.js';
 import { isPostgresAvailable, query } from './db/postgres.js';
-import { postgresRepo } from './db/postgresRepository.js';
+import { postgresRepo, mapUserRow } from './db/postgresRepository.js';
 
 const DB_FILE = process.env.VERCEL
   ? path.resolve('/tmp', 'db.json')
@@ -411,14 +411,75 @@ export class Database {
     return this.data.users.map(u => this.toSafeUser(u));
   }
 
+  syncUserFromPg(user: User): void {
+    const idx = this.data.users.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+    if (idx !== -1) {
+      this.data.users[idx] = {
+        ...this.data.users[idx],
+        ...user,
+        avatarUrl: user.avatarUrl || this.data.users[idx].avatarUrl,
+        coverUrl: user.coverUrl || this.data.users[idx].coverUrl,
+      };
+    } else {
+      this.data.users.push(user);
+    }
+  }
+
+  async syncWithPostgres(): Promise<void> {
+    if (!isPostgresAvailable()) return;
+    try {
+      const pgUsers = await query('SELECT * FROM users');
+      for (const row of pgUsers.rows) {
+        const u = mapUserRow(row);
+        const idx = this.data.users.findIndex(x => x.id === u.id || x.email.toLowerCase() === u.email.toLowerCase());
+        if (idx !== -1) {
+          this.data.users[idx] = {
+            ...this.data.users[idx],
+            ...u,
+            avatarUrl: u.avatarUrl || this.data.users[idx].avatarUrl,
+            coverUrl: u.coverUrl || this.data.users[idx].coverUrl,
+          };
+        } else {
+          this.data.users.push(u);
+        }
+      }
+
+      // Ensure seed users in this.data.users also exist in PostgreSQL
+      for (const user of this.data.users) {
+        const check = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [user.id]);
+        if (check.rowCount === 0) {
+          try {
+            await postgresRepo.createUser(user);
+          } catch (e: any) {
+            // ignore if exists
+          }
+        }
+      }
+      await this.persist();
+      console.log(`[DB] Successfully synchronized ${this.data.users.length} users with PostgreSQL.`);
+    } catch (err: any) {
+      console.error('[DB] PostgreSQL synchronization error:', err.message);
+    }
+  }
+
   async createUser(user: User): Promise<SafeUser> {
     if (!user.workHistory) user.workHistory = [];
     if (!user.connections) user.connections = [];
     if (!user.skills) user.skills = [];
-    this.data.users.push(user);
+    const idx = this.data.users.findIndex(u => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+    if (idx !== -1) {
+      this.data.users[idx] = { ...this.data.users[idx], ...user };
+    } else {
+      this.data.users.push(user);
+    }
     if (isPostgresAvailable()) {
       try {
-        await postgresRepo.createUser(user);
+        const check = await query('SELECT id FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1', [user.id, user.email]);
+        if (check.rowCount === 0) {
+          await postgresRepo.createUser(user);
+        } else {
+          await postgresRepo.updateUser(user.id, user);
+        }
       } catch (err: any) {
         console.error('PostgreSQL createUser error:', err.message);
       }
@@ -428,7 +489,16 @@ export class Database {
   }
 
   async updateUser(id: string, updates: Partial<User>): Promise<SafeUser | null> {
-    const idx = this.data.users.findIndex(u => u.id === id);
+    let idx = this.data.users.findIndex(u => u.id === id);
+    if (idx === -1 && isPostgresAvailable()) {
+      try {
+        const pgUser = await postgresRepo.findUserById(id);
+        if (pgUser) {
+          this.data.users.push(pgUser);
+          idx = this.data.users.length - 1;
+        }
+      } catch (e) {}
+    }
     if (idx === -1) return null;
 
     this.data.users[idx] = {

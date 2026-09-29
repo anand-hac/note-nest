@@ -74,6 +74,22 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
+  React.useEffect(() => {
+    if (isOpen && user) {
+      setName(user.name || '');
+      setRole(user.role || '');
+      setBio(user.bio || '');
+      setLocation(user.location || '');
+      setAvatarUrl(user.avatarUrl || '');
+      setCoverUrl(user.coverUrl || '');
+      setSkills(user.skills || []);
+      setWorkHistory(user.workHistory || []);
+      setGithubUrl(user.githubUrl || '');
+      setLinkedinUrl(user.linkedinUrl || '');
+      setWebsiteUrl(user.websiteUrl || '');
+    }
+  }, [isOpen, user]);
+
   if (!isOpen) return null;
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,7 +242,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             </label>
             <div className="relative rounded-2xl overflow-hidden h-32 bg-slate-200 dark:bg-slate-800 border border-dashed border-slate-300 dark:border-slate-700">
               {coverUrl ? (
-                <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                <img 
+                  src={coverUrl} 
+                  alt="Cover" 
+                  referrerPolicy="no-referrer" 
+                  className="w-full h-full object-cover" 
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">
                   No Cover Image
@@ -256,6 +277,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <img
                   src={avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`}
                   alt={user.name}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`;
+                  }}
                   className="w-20 h-20 rounded-2xl object-cover neu-raised-sm border-2 border-white dark:border-black"
                 />
                 <input
