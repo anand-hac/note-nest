@@ -24,7 +24,7 @@ import { NeumorphicButton } from '../components/common/NeumorphicButton';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { api } from '../utils/api';
 import { sound } from '../utils/sound';
-import { firebaseService } from '../services/firebaseService';
+import { uploadMediaFile } from '../utils/image';
 
 export const SettingsPage: React.FC = () => {
   const { user, refreshUser, updateUserPreferences, logout } = useAuth();
@@ -160,7 +160,7 @@ export const SettingsPage: React.FC = () => {
                   if (!file) return;
                   setUploadingAvatar(true);
                   try {
-                    const url = await firebaseService.uploadMediaFile(file, 'avatars');
+                    const url = await uploadMediaFile(file, 'avatars');
                     setAvatarUrl(url);
                     sound.playChime();
                   } catch (err) {

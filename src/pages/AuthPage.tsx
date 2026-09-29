@@ -16,7 +16,6 @@ import { useAuth } from '../context/AuthContext';
 import { NeumorphicButton } from '../components/common/NeumorphicButton';
 import { api } from '../utils/api';
 import { sound } from '../utils/sound';
-import { firebaseService } from '../services/firebaseService';
 
 export const AuthPage: React.FC = () => {
   const { login, register, loginWithGoogle } = useAuth();
@@ -69,41 +68,6 @@ export const AuthPage: React.FC = () => {
     setError(null);
   };
 
-  const handleGoogleSignIn = async () => {
-    sound.playClick();
-    setError(null);
-    setLoading(true);
-    try {
-      if (!firebaseService.isAvailable()) {
-        throw new Error('Firebase credentials are not configured yet. Please configure your Firebase API key.');
-      }
-      const fbUser = await firebaseService.loginWithGoogle();
-      if (fbUser.email) {
-        await loginWithGoogle({
-          email: fbUser.email,
-          name: fbUser.displayName || fbUser.email.split('@')[0],
-          avatarUrl: fbUser.photoURL || undefined,
-          googleId: fbUser.uid,
-        });
-        sound.playChime();
-      }
-    } catch (err: any) {
-      console.error('Firebase Google sign-in error:', err);
-      let msg = err.message || 'Google sign-in failed.';
-      if (err.code === 'auth/popup-closed-by-user') {
-        msg = 'Google Sign-In popup was closed before completing.';
-      } else if (err.code === 'auth/unauthorized-domain') {
-        msg = 'This domain is not in your Firebase Console Authorized Domains list (Authentication -> Settings -> Authorized Domains).';
-      } else if (err.code === 'auth/api-key-not-valid' || err.code === 'auth/invalid-api-key') {
-        msg = 'The Firebase API key is invalid. Please check your Firebase Console project settings.';
-      } else if (err.code === 'auth/popup-blocked') {
-        msg = 'Popup was blocked by your browser. Please allow popups for Google Sign-In.';
-      }
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#141518] text-slate-100 antialiased selection:bg-slate-700">
@@ -282,43 +246,6 @@ export const AuthPage: React.FC = () => {
               <span>{loading ? 'Authenticating...' : mode === 'login' ? 'Sign In to Workspace' : 'Create Free Account'}</span>
               <ArrowRight className="w-4 h-4" />
             </NeumorphicButton>
-
-            {/* Google Firebase Login Option */}
-            <div className="relative my-3 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/5" />
-              </div>
-              <span className="relative px-2 bg-[#191b20] text-[10px] uppercase font-bold text-slate-500">
-                Or with Google Firebase
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={loading}
-              className="w-full py-2.5 px-4 rounded-2xl neu-btn text-xs font-semibold text-slate-200 hover:text-white flex items-center justify-center gap-2 cursor-pointer border border-white/5"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path
-                  fill="#EA4335"
-                  d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.4 9 5 12 5z"
-                />
-                <path
-                  fill="#4285F4"
-                  d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.8s.2-2.1.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.4-6.4-5.2L1.9 16c1.8 3.7 5.6 7 10.1 7z"
-                />
-              </svg>
-              <span>Continue with Google</span>
-            </button>
           </form>
 
           {/* Quick Demo Accounts for Seamless Testing */}

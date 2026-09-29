@@ -18,13 +18,13 @@
     "date-fns": "^4.4.0",
     "dotenv": "^18.0.4",
     "express": "^5.2.1",
-    "firebase": "^12.19.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.48.0",
+    "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "uuid": "^14.0.2",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "uuid": "^14.0.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -34,6 +34,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.19.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@types/uuid": "^10.0.0",

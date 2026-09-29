@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './db.js';
+import { initPostgresSchema } from './db/postgres.js';
 import { requireAuth, AuthenticatedRequest, generateToken, hashPassword, comparePassword } from './auth.js';
 import { Note, Reminder, User, Collaborator, ChatMessage, OnlineStatus } from './types.js';
 
@@ -177,13 +178,16 @@ app.post('/api/auth/google', async (req, res) => {
       await db.createUser(newUser);
       existingUser = newUser;
     } else {
+      // Existing user logging in - preserve custom avatar unless it was just the initial placeholder
       if (avatarUrl && (!existingUser.avatarUrl || existingUser.avatarUrl.includes('dicebear'))) {
         await db.updateUser(existingUser.id, { avatarUrl });
       }
       await db.updateUserPresence(existingUser.id, 'online');
     }
 
-    const safeUser = db.toSafeUser(existingUser);
+    // Always fetch the freshest user record with all saved profile data, cover, and history
+    const freshUser = db.findUserById(existingUser.id) || existingUser;
+    const safeUser = db.toSafeUser(freshUser);
     const token = generateToken(safeUser);
 
     res.json({ user: safeUser, token, isBrandNew });
@@ -193,8 +197,12 @@ app.post('/api/auth/google', async (req, res) => {
   }
 });
 
-// Get current user profile
+// Get current user profile (supports both /api/auth/me and /api/users/me)
 app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  res.json({ user: req.user });
+});
+
+app.get('/api/users/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   res.json({ user: req.user });
 });
 
@@ -209,6 +217,7 @@ app.put('/api/auth/profile', requireAuth, async (req: AuthenticatedRequest, res:
       bio, 
       role, 
       location, 
+      customStatus,
       skills, 
       workHistory, 
       githubUrl, 
@@ -224,6 +233,7 @@ app.put('/api/auth/profile', requireAuth, async (req: AuthenticatedRequest, res:
     if (bio !== undefined) updates.bio = bio;
     if (role !== undefined) updates.role = role;
     if (location !== undefined) updates.location = location;
+    if (customStatus !== undefined) updates.customStatus = customStatus;
     if (skills !== undefined) updates.skills = Array.isArray(skills) ? skills : [];
     if (workHistory !== undefined) updates.workHistory = Array.isArray(workHistory) ? workHistory : [];
     if (githubUrl !== undefined) updates.githubUrl = githubUrl;
@@ -995,10 +1005,33 @@ if (fs.existsSync(distPath)) {
   });
 }
 
-if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`Note Nest backend server running on http://localhost:${PORT}`);
+// Global error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled API Error:', err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    error: err.message || 'An unexpected internal server error occurred.',
+    code: err.code || 'INTERNAL_ERROR',
   });
+});
+
+if (!process.env.VERCEL) {
+  initPostgresSchema()
+    .then(async (connected) => {
+      if (connected) {
+        await db.syncWithPostgres();
+      }
+    })
+    .catch((err) => {
+      console.warn('PostgreSQL startup check notice:', err.message);
+    })
+    .finally(() => {
+      app.listen(PORT, () => {
+        console.log(`Note Nest backend server running on http://localhost:${PORT}`);
+        console.log(`REST API ready at http://localhost:${PORT}/api/`);
+      });
+    });
 }
 
 export default app;
+

@@ -14,6 +14,8 @@ import {
   MediaComment,
   WorkExperience
 } from './types.js';
+import { isPostgresAvailable, query } from './db/postgres.js';
+import { postgresRepo } from './db/postgresRepository.js';
 
 const DB_FILE = process.env.VERCEL
   ? path.resolve('/tmp', 'db.json')
@@ -332,26 +334,18 @@ export class Database {
   }
 
   private async persist(): Promise<void> {
-    if (this.isSaving) {
-      this.saveQueued = true;
-      return;
-    }
-    this.isSaving = true;
     try {
       const dir = path.dirname(DB_FILE);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      const tmpFile = `${DB_FILE}.tmp.${Date.now()}`;
-      await fs.promises.writeFile(tmpFile, JSON.stringify(this.data, null, 2), 'utf-8');
-      await fs.promises.rename(tmpFile, DB_FILE);
+      await fs.promises.writeFile(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
     } catch (err) {
-      console.error('Error persisting database:', err);
-    } finally {
-      this.isSaving = false;
-      if (this.saveQueued) {
-        this.saveQueued = false;
-        this.persist();
+      console.error('Error persisting database, executing synchronous write fallback:', err);
+      try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
+      } catch (syncErr) {
+        console.error('Critical: Failed to save database file:', syncErr);
       }
     }
   }
@@ -422,6 +416,13 @@ export class Database {
     if (!user.connections) user.connections = [];
     if (!user.skills) user.skills = [];
     this.data.users.push(user);
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.createUser(user);
+      } catch (err: any) {
+        console.error('PostgreSQL createUser error:', err.message);
+      }
+    }
     await this.persist();
     return this.toSafeUser(user);
   }
@@ -435,6 +436,13 @@ export class Database {
       ...updates,
       lastActive: new Date().toISOString(),
     };
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.updateUser(id, updates);
+      } catch (err: any) {
+        console.error('PostgreSQL updateUser error:', err.message);
+      }
+    }
     await this.persist();
     return this.toSafeUser(this.data.users[idx]);
   }
@@ -447,6 +455,13 @@ export class Database {
     this.data.reminders = this.data.reminders.filter(r => r.userId !== id);
     if (this.data.mediaPosts) {
       this.data.mediaPosts = this.data.mediaPosts.filter(m => m.userId !== id);
+    }
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.deleteUser(id);
+      } catch (err: any) {
+        console.error('PostgreSQL deleteUser error:', err.message);
+      }
     }
     await this.persist();
     return true;
@@ -541,6 +556,13 @@ export class Database {
 
     if (!this.data.mediaPosts) this.data.mediaPosts = [];
     this.data.mediaPosts.unshift(post);
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.createMediaPost(post);
+      } catch (err: any) {
+        console.error('PostgreSQL createMediaPost error:', err.message);
+      }
+    }
     await this.persist();
     return post;
   }
@@ -550,6 +572,13 @@ export class Database {
     const idx = this.data.mediaPosts.findIndex(m => m.id === id && m.userId === userId);
     if (idx === -1) return false;
     this.data.mediaPosts.splice(idx, 1);
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.deleteMediaPost(id);
+      } catch (err: any) {
+        console.error('PostgreSQL deleteMediaPost error:', err.message);
+      }
+    }
     await this.persist();
     return true;
   }
@@ -569,6 +598,13 @@ export class Database {
       isLiked = true;
     }
 
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.updateMediaPost(id, { likes: post.likes });
+      } catch (err: any) {
+        console.error('PostgreSQL updateMediaPost likes error:', err.message);
+      }
+    }
     await this.persist();
     return { post, isLiked };
   }
@@ -685,6 +721,13 @@ export class Database {
 
   async createNote(note: Note): Promise<Note> {
     this.data.notes.unshift(note);
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.createNote(note);
+      } catch (err: any) {
+        console.error('PostgreSQL createNote error:', err.message);
+      }
+    }
     await this.persist();
     return note;
   }
@@ -697,6 +740,13 @@ export class Database {
       ...updates,
       updatedAt: new Date().toISOString(),
     };
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.updateNote(id, updates);
+      } catch (err: any) {
+        console.error('PostgreSQL updateNote error:', err.message);
+      }
+    }
     await this.persist();
     return this.data.notes[idx];
   }
@@ -705,6 +755,13 @@ export class Database {
     const initialCount = this.data.notes.length;
     this.data.notes = this.data.notes.filter(n => n.id !== id);
     this.data.reminders = this.data.reminders.filter(r => r.noteId !== id);
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.deleteNote(id);
+      } catch (err: any) {
+        console.error('PostgreSQL deleteNote error:', err.message);
+      }
+    }
     await this.persist();
     return this.data.notes.length < initialCount;
   }
@@ -722,6 +779,13 @@ export class Database {
 
   async createReminder(reminder: Reminder): Promise<Reminder> {
     this.data.reminders.push(reminder);
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.createReminder(reminder);
+      } catch (err: any) {
+        console.error('PostgreSQL createReminder error:', err.message);
+      }
+    }
     await this.persist();
     return reminder;
   }
@@ -734,6 +798,13 @@ export class Database {
       ...updates,
       updatedAt: new Date().toISOString(),
     };
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.updateReminder(id, updates);
+      } catch (err: any) {
+        console.error('PostgreSQL updateReminder error:', err.message);
+      }
+    }
     await this.persist();
     return this.data.reminders[idx];
   }
@@ -741,6 +812,13 @@ export class Database {
   async deleteReminder(id: string): Promise<boolean> {
     const initialCount = this.data.reminders.length;
     this.data.reminders = this.data.reminders.filter(r => r.id !== id);
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.deleteReminder(id);
+      } catch (err: any) {
+        console.error('PostgreSQL deleteReminder error:', err.message);
+      }
+    }
     await this.persist();
     return this.data.reminders.length < initialCount;
   }
@@ -780,6 +858,35 @@ export class Database {
     if (!this.data.messages) return 0;
     return this.data.messages.filter(m => (m.recipientId === userId || m.recipientId === 'team') && m.senderId !== userId && !m.isRead).length;
   }
+
+  async syncWithPostgres(): Promise<void> {
+    if (!isPostgresAvailable()) return;
+    try {
+      const res = await query('SELECT COUNT(*) FROM users');
+      const count = parseInt(res.rows[0].count, 10);
+      if (count === 0) {
+        console.log('PostgreSQL is connected and empty. Seeding initial data...');
+        for (const u of this.data.users) {
+          await postgresRepo.createUser(u).catch(() => {});
+        }
+        for (const n of this.data.notes) {
+          await postgresRepo.createNote(n).catch(() => {});
+        }
+        for (const r of this.data.reminders) {
+          await postgresRepo.createReminder(r).catch(() => {});
+        }
+        for (const m of this.data.mediaPosts || []) {
+          await postgresRepo.createMediaPost(m).catch(() => {});
+        }
+        console.log('PostgreSQL seeded successfully.');
+      } else {
+        console.log(`Connected to PostgreSQL with ${count} existing users in database.`);
+      }
+    } catch (err: any) {
+      console.warn('PostgreSQL sync notice:', err.message);
+    }
+  }
 }
 
 export const db = new Database();
+

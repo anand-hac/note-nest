@@ -22,7 +22,6 @@ import { EditProfileModal } from './components/profile/EditProfileModal';
 import { Note, Reminder, AppStats, User, MediaPost } from './types';
 import { api } from './utils/api';
 import { sound } from './utils/sound';
-import { firebaseService } from './services/firebaseService';
 
 const MainApp: React.FC = () => {
   const { user, loading, refreshUser } = useAuth();
@@ -109,11 +108,6 @@ const MainApp: React.FC = () => {
       setNotes(prev => [res.note, ...prev]);
     }
 
-    // Mirror to Firebase if available
-    if (firebaseService.isAvailable()) {
-      firebaseService.syncNote(savedNote);
-    }
-
     // If an associated reminder was created/updated
     if (noteData.reminder && noteData.reminder.dueDateTime) {
       const remRes = await api.getReminders();
@@ -128,9 +122,6 @@ const MainApp: React.FC = () => {
   const handleDeleteNote = async (id: string) => {
     sound.playClick();
     await api.deleteNote(id);
-    if (firebaseService.isAvailable()) {
-      firebaseService.deleteNote(id);
-    }
     setNotes(prev => prev.filter(n => n.id !== id));
     setSharedNotes(prev => prev.filter(n => n.id !== id));
     // Also remove any linked reminders from state
@@ -142,9 +133,6 @@ const MainApp: React.FC = () => {
     const res = await api.updateNote(note.id, { isPinned: !note.isPinned });
     setNotes(prev => prev.map(n => (n.id === note.id ? res.note : n)));
     setSharedNotes(prev => prev.map(n => (n.id === note.id ? res.note : n)));
-    if (firebaseService.isAvailable()) {
-      firebaseService.syncNote(res.note);
-    }
   };
 
   const handleOpenShare = (note: Note) => {
@@ -156,9 +144,6 @@ const MainApp: React.FC = () => {
   const handleNoteUpdatedFromShare = (updatedNote: Note) => {
     setNotes(prev => prev.map(n => (n.id === updatedNote.id ? updatedNote : n)));
     setSharedNotes(prev => prev.map(n => (n.id === updatedNote.id ? updatedNote : n)));
-    if (firebaseService.isAvailable()) {
-      firebaseService.syncNote(updatedNote);
-    }
   };
 
   // Reminder actions
@@ -175,19 +160,12 @@ const MainApp: React.FC = () => {
   };
 
   const handleSaveReminder = async (remData: Partial<Reminder>) => {
-    let savedReminder: Reminder;
     if (editingReminder) {
       const res = await api.updateReminder(editingReminder.id, remData);
-      savedReminder = res.reminder;
       setReminders(prev => prev.map(r => (r.id === res.reminder.id ? res.reminder : r)));
     } else {
       const res = await api.createReminder(remData as any);
-      savedReminder = res.reminder;
       setReminders(prev => [...prev, res.reminder]);
-    }
-
-    if (firebaseService.isAvailable()) {
-      firebaseService.syncReminder(savedReminder);
     }
 
     sound.playChime();
@@ -199,18 +177,12 @@ const MainApp: React.FC = () => {
     sound.playClick();
     const res = await api.toggleReminder(id);
     setReminders(prev => prev.map(r => (r.id === id ? res.reminder : r)));
-    if (firebaseService.isAvailable()) {
-      firebaseService.syncReminder(res.reminder);
-    }
     checkRemindersNow();
   };
 
   const handleDeleteReminder = async (id: string) => {
     sound.playClick();
     await api.deleteReminder(id);
-    if (firebaseService.isAvailable()) {
-      firebaseService.deleteReminder(id);
-    }
     setReminders(prev => prev.filter(r => r.id !== id));
   };
 
@@ -222,9 +194,6 @@ const MainApp: React.FC = () => {
       tags: [],
     });
     setNotes(prev => [res.note, ...prev]);
-    if (firebaseService.isAvailable()) {
-      firebaseService.syncNote(res.note);
-    }
     sound.playChime();
   };
 
@@ -236,9 +205,6 @@ const MainApp: React.FC = () => {
   }) => {
     const res = await api.createReminder(payload);
     setReminders(prev => [...prev, res.reminder]);
-    if (firebaseService.isAvailable()) {
-      firebaseService.syncReminder(res.reminder);
-    }
     sound.playChime();
     checkRemindersNow();
   };

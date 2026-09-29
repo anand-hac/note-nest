@@ -14,7 +14,7 @@ import {
 import { User, WorkExperience } from '../../types';
 import { api } from '../../utils/api';
 import { sound } from '../../utils/sound';
-import { firebaseService } from '../../services/firebaseService';
+import { uploadMediaFile } from '../../utils/image';
 import { NeumorphicButton } from '../common/NeumorphicButton';
 
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
@@ -82,7 +82,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     setUploadingAvatar(true);
     sound.playClick();
     try {
-      const url = await firebaseService.uploadMediaFile(file, 'avatars');
+      const url = await uploadMediaFile(file, 'avatars');
       setAvatarUrl(url);
       sound.playChime();
     } catch (err) {
@@ -99,7 +99,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     setUploadingCover(true);
     sound.playClick();
     try {
-      const url = await firebaseService.uploadMediaFile(file, 'covers');
+      const url = await uploadMediaFile(file, 'covers');
       setCoverUrl(url);
       sound.playChime();
     } catch (err) {
@@ -181,13 +181,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       sound.playChime();
       onProfileUpdated(res.user);
       onClose();
-
-      // Non-blocking background Firestore sync
-      if (firebaseService.isAvailable()) {
-        firebaseService.syncUserProfile(res.user).catch(err => {
-          console.warn('Background profile sync:', err);
-        });
-      }
     } catch (err: any) {
       console.error('Failed to update profile:', err);
     } finally {

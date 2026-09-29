@@ -23,7 +23,7 @@ import {
 import { MediaPost, User } from '../types';
 import { api } from '../utils/api';
 import { sound } from '../utils/sound';
-import { firebaseService } from '../services/firebaseService';
+import { uploadMediaFile } from '../utils/image';
 import { NeumorphicButton } from '../components/common/NeumorphicButton';
 import { UserProfileModal } from '../components/profile/UserProfileModal';
 
@@ -95,25 +95,6 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
     loadPosts();
   }, [filterType, searchQuery]);
 
-  // Real-time Firebase Firestore Sync for Media Feed if available
-  useEffect(() => {
-    if (firebaseService.isAvailable()) {
-      const unsub = firebaseService.subscribeMediaPosts((firebasePosts) => {
-        if (firebasePosts && firebasePosts.length > 0) {
-          setPosts(prev => {
-            // merge or prefer latest
-            const existingIds = new Set(prev.map(p => p.id));
-            const newOnes = firebasePosts.filter(fp => !existingIds.has(fp.id));
-            return [...newOnes, ...prev];
-          });
-        }
-      });
-      return () => {
-        if (unsub) unsub();
-      };
-    }
-  }, []);
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -121,7 +102,7 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
     setUploadError(null);
     sound.playClick();
     try {
-      const url = await firebaseService.uploadMediaFile(file, mediaType === 'video' ? 'videos' : 'photos');
+      const url = await uploadMediaFile(file, mediaType === 'video' ? 'videos' : 'photos');
       setUploadMediaUrl(url);
       sound.playChime();
     } catch (err: any) {
@@ -165,12 +146,6 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
       setUploadTags('');
       setUploadError(null);
 
-      // Non-blocking background Firestore sync
-      if (firebaseService.isAvailable()) {
-        firebaseService.syncMediaPost(res.post).catch(err => {
-          console.warn('Background media sync warning:', err);
-        });
-      }
     } catch (err: any) {
       console.error('Failed to create media post:', err);
       setUploadError(err.message || 'Failed to publish media post. Try a smaller file or direct link.');
@@ -184,9 +159,6 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
     try {
       const res = await api.likeMediaPost(postId);
       setPosts(prev => prev.map(p => (p.id === postId ? res.post : p)));
-      if (firebaseService.isAvailable()) {
-        await firebaseService.likeMediaPost(postId, currentUser.id, res.isLiked);
-      }
     } catch (err) {
       console.error('Failed to like post:', err);
     }
@@ -210,9 +182,6 @@ export const ShowcasePage: React.FC<ShowcasePageProps> = ({
     sound.playClick();
     try {
       await api.deleteMediaPost(postId);
-      if (firebaseService.isAvailable()) {
-        await firebaseService.deleteMediaPost(postId);
-      }
       setPosts(prev => prev.filter(p => p.id !== postId));
     } catch (err) {
       console.error('Failed to delete media post:', err);
