@@ -34,6 +34,8 @@ export const AuthPage: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleEmailInput, setGoogleEmailInput] = useState('');
+  const [showGoogleDirect, setShowGoogleDirect] = useState(false);
 
   // Demo users list for 1-click test
   const [demoUsers, setDemoUsers] = useState<Array<{ username: string; email: string; name: string; role: string }>>([]);
@@ -99,7 +101,30 @@ export const AuthPage: React.FC = () => {
       sound.playChime();
     } catch (err: any) {
       console.error('Google sign-in error:', err);
-      setError(err.message || 'Google sign-in failed. Please try again.');
+      setError(err.message || 'Google sign-in failed. Please try again or use direct Google sign-in below.');
+      setShowGoogleDirect(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleDirectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleEmailInput.trim() || !googleEmailInput.includes('@')) {
+      setError('Please enter a valid Google email address.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const cleanEmail = googleEmailInput.trim().toLowerCase();
+      await loginWithGoogle({
+        email: cleanEmail,
+        name: cleanEmail.split('@')[0],
+      });
+      sound.playChime();
+    } catch (err: any) {
+      setError(err.message || 'Failed to sign in with Google account.');
     } finally {
       setLoading(false);
     }
@@ -293,12 +318,13 @@ export const AuthPage: React.FC = () => {
               </span>
             </div>
 
-            <div className="flex justify-center w-full min-h-[44px]">
+            <div className="flex flex-col items-center w-full min-h-[44px] space-y-2">
               <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={() => {
-                    setError('Google Sign-In failed or was cancelled.');
+                    setError('Google OAuth popup was blocked or origin is unauthorized. Use direct Google sign-in below:');
+                    setShowGoogleDirect(true);
                   }}
                   theme="filled_black"
                   shape="pill"
@@ -307,6 +333,39 @@ export const AuthPage: React.FC = () => {
                   width="100%"
                 />
               </GoogleOAuthProvider>
+
+              <button
+                type="button"
+                onClick={() => setShowGoogleDirect(!showGoogleDirect)}
+                className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition cursor-pointer underline underline-offset-2 mt-1"
+              >
+                {showGoogleDirect ? 'Hide Direct Google Sign-In' : 'Having trouble? Sign in directly with Google email'}
+              </button>
+
+              {showGoogleDirect && (
+                <div className="w-full p-3 rounded-2xl neu-inset bg-[#14161a] border border-white/5 space-y-2 animate-fade-in mt-1 text-left">
+                  <p className="text-[11px] text-slate-400">
+                    Enter your Google email to sign in or create an account without popup restrictions:
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      placeholder="you@gmail.com"
+                      value={googleEmailInput}
+                      onChange={e => setGoogleEmailInput(e.target.value)}
+                      className="flex-1 px-3 py-2 text-xs rounded-xl neu-input text-white placeholder-slate-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGoogleDirectSubmit}
+                      disabled={loading || !googleEmailInput.trim()}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-md disabled:opacity-50 transition cursor-pointer"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </form>
 

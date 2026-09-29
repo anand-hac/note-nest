@@ -17,26 +17,53 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem('notenest_cached_user');
+      const token = getAuthToken();
+      if (token && cached) {
+        return JSON.parse(cached);
+      }
+    } catch (e) {}
+    return null;
+  });
+  const [loading, setLoading] = useState<boolean>(() => !user && !!getAuthToken());
+
+  const saveUserSession = (newUser: User | null) => {
+    setUser(newUser);
+    if (newUser) {
+      try {
+        localStorage.setItem('notenest_cached_user', JSON.stringify(newUser));
+      } catch (e) {}
+    } else {
+      localStorage.removeItem('notenest_cached_user');
+    }
+  };
 
   const refreshUser = async () => {
+    const token = getAuthToken();
+    if (!token) {
+      saveUserSession(null);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const token = getAuthToken();
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
       const data = await api.getMe();
-      setUser(data.user);
-      if (data.user.preferences) {
-        sound.enabled = data.user.preferences.soundEnabled ?? true;
+      if (data && data.user) {
+        saveUserSession(data.user);
+        if (data.user.preferences) {
+          sound.enabled = data.user.preferences.soundEnabled ?? true;
+        }
       }
-    } catch (err) {
-      console.error('Failed to fetch user:', err);
-      api.logout();
-      setUser(null);
+    } catch (err: any) {
+      console.warn('Background profile refresh notice:', err.message);
+      // Only sign off if the server explicitly confirmed the token was expired or invalid
+      if (err.message && (err.message.includes('Invalid or expired') || err.message.includes('401'))) {
+        api.logout();
+        saveUserSession(null);
+      }
+      // If network glitch or temporary backend restart, keep user logged in with cached session!
     } finally {
       setLoading(false);
     }
@@ -46,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUser();
 
     const handleUnauthorized = () => {
-      setUser(null);
+      saveUserSession(null);
     };
     window.addEventListener('notenest_unauthorized', handleUnauthorized);
     return () => window.removeEventListener('notenest_unauthorized', handleUnauthorized);
@@ -54,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (identifier: string, pass: string) => {
     const data = await api.login(identifier, pass);
-    setUser(data.user);
+    saveUserSession(data.user);
     if (data.user.preferences) {
       sound.enabled = data.user.preferences.soundEnabled ?? true;
     }
@@ -63,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (name: string, username: string, email: string, pass: string) => {
     const data = await api.register(name, username, email, pass);
-    setUser(data.user);
+    saveUserSession(data.user);
     if (data.user.preferences) {
       sound.enabled = data.user.preferences.soundEnabled ?? true;
     }
@@ -72,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = async (payload: { email: string; name: string; avatarUrl?: string; googleId?: string }) => {
     const data = await api.loginWithGoogle(payload);
-    setUser(data.user);
+    saveUserSession(data.user);
     if (data.user.preferences) {
       sound.enabled = data.user.preferences.soundEnabled ?? true;
     }
@@ -82,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     api.logout();
-    setUser(null);
+    saveUserSession(null);
     sound.playClick();
   };
 

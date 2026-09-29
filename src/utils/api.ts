@@ -34,9 +34,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     if (response.status === 401) {
-      setAuthToken(null);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('notenest_unauthorized', { detail: data.error }));
+      if (endpoint.startsWith('/auth/me') || data.error?.includes('Invalid or expired')) {
+        setAuthToken(null);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notenest_unauthorized', { detail: data.error }));
+        }
       }
     }
     throw new Error(data.error || `Request failed with status ${response.status}`);
