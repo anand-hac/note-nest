@@ -16,6 +16,9 @@ import { useAuth } from '../context/AuthContext';
 import { NeumorphicButton } from '../components/common/NeumorphicButton';
 import { api } from '../utils/api';
 import { sound } from '../utils/sound';
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '554583305104-0fs1hbrgkp8ocvqc95gt6dqkrqfl28lf.apps.googleusercontent.com';
 
 export const AuthPage: React.FC = () => {
   const { login, register, loginWithGoogle } = useAuth();
@@ -68,6 +71,39 @@ export const AuthPage: React.FC = () => {
     setError(null);
   };
 
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    sound.playClick();
+    setError(null);
+    setLoading(true);
+    try {
+      if (!credentialResponse.credential) {
+        throw new Error('No credential token received from Google.');
+      }
+      const token = credentialResponse.credential;
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const decoded = JSON.parse(jsonPayload);
+
+      await loginWithGoogle({
+        email: decoded.email,
+        name: decoded.name || decoded.email.split('@')[0],
+        avatarUrl: decoded.picture,
+        googleId: decoded.sub,
+      });
+      sound.playChime();
+    } catch (err: any) {
+      console.error('Google sign-in error:', err);
+      setError(err.message || 'Google sign-in failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#141518] text-slate-100 antialiased selection:bg-slate-700">
@@ -246,6 +282,32 @@ export const AuthPage: React.FC = () => {
               <span>{loading ? 'Authenticating...' : mode === 'login' ? 'Sign In to Workspace' : 'Create Free Account'}</span>
               <ArrowRight className="w-4 h-4" />
             </NeumorphicButton>
+
+            {/* Google OAuth Login Option */}
+            <div className="relative my-3 text-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/5" />
+              </div>
+              <span className="relative px-2 bg-[#191b20] text-[10px] uppercase font-bold text-slate-500">
+                Or continue with Google
+              </span>
+            </div>
+
+            <div className="flex justify-center w-full min-h-[44px]">
+              <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => {
+                    setError('Google Sign-In failed or was cancelled.');
+                  }}
+                  theme="filled_black"
+                  shape="pill"
+                  size="large"
+                  text={mode === 'login' ? 'signin_with' : 'signup_with'}
+                  width="100%"
+                />
+              </GoogleOAuthProvider>
+            </div>
           </form>
 
           {/* Quick Demo Accounts for Seamless Testing */}
