@@ -7,16 +7,20 @@
     --text-primary: #18191c;
     --text-secondary: #64748b;
     --text-muted: #94a3b8;
-    --border-color: rgba(200, 210, 225, 0.4);
+    --border-color: rgba(200, 210, 225, 0.45);
     
-    /* Neumorphic Shadows - Light */
-    --neu-raised: 6px 6px 14px #c5ceda, -6px -6px 14px #ffffff;
-    --neu-raised-sm: 3px 3px 8px #c9d2de, -3px -3px 8px #ffffff;
-    --neu-raised-lg: 12px 12px 28px #bcc7d6, -12px -12px 28px #ffffff;
-    --neu-inset: inset 3px 3px 6px #c5ceda, inset -3px -3px 6px #ffffff;
-    --neu-inset-sm: inset 2px 2px 4px #c9d2de, inset -2px -2px 4px #ffffff;
-    --neu-convex: linear-gradient(145deg, #ffffff, #dbe2ec);
-    --neu-concave: linear-gradient(145deg, #dbe2ec, #ffffff);
+    /* Claymorphism & Neumorphic Dual Bevels - Light */
+    --clay-card-shadow: 12px 16px 32px rgba(166, 178, 198, 0.42), -8px -8px 20px rgba(255, 255, 255, 0.95);
+    --clay-card-inner: inset 3px 3px 6px rgba(255, 255, 255, 0.9), inset -3px -3px 6px rgba(166, 178, 198, 0.25);
+    --clay-btn-shadow: 6px 10px 20px rgba(166, 178, 198, 0.45), -4px -4px 12px rgba(255, 255, 255, 0.95);
+    --clay-btn-inner: inset 2px 2px 4px rgba(255, 255, 255, 0.9), inset -2px -2px 4px rgba(166, 178, 198, 0.28);
+    --clay-inset-shadow: inset 4px 5px 10px rgba(166, 178, 198, 0.42), inset -4px -5px 10px rgba(255, 255, 255, 0.9);
+
+    --neu-raised: var(--clay-card-shadow);
+    --neu-raised-sm: var(--clay-btn-shadow);
+    --neu-raised-lg: 16px 22px 42px rgba(166, 178, 198, 0.5), -12px -12px 28px rgba(255, 255, 255, 0.98);
+    --neu-inset: var(--clay-inset-shadow);
+    --neu-inset-sm: inset 2px 3px 6px rgba(166, 178, 198, 0.38), inset -2px -3px 6px rgba(255, 255, 255, 0.9);
   }
 
   .dark {
@@ -25,16 +29,20 @@
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
-    --border-color: rgba(255, 255, 255, 0.05);
+    --border-color: rgba(255, 255, 255, 0.06);
 
-    /* Neumorphic Shadows - Dark (Monochrome / Charcoal / Black) */
-    --neu-raised: 7px 7px 16px #0d0e10, -7px -7px 16px #23262d;
-    --neu-raised-sm: 4px 4px 9px #0e0f11, -4px -4px 9px #22252c;
-    --neu-raised-lg: 14px 14px 30px #090a0c, -14px -14px 30px #282c35;
-    --neu-inset: inset 4px 4px 8px #0d0e10, inset -4px -4px 8px #24272f;
-    --neu-inset-sm: inset 2px 2px 5px #0e0f11, inset -2px -2px 5px #22252c;
-    --neu-convex: linear-gradient(145deg, #22252d, #14161a);
-    --neu-concave: linear-gradient(145deg, #14161a, #22252d);
+    /* Claymorphism & Neumorphic Dual Bevels - Dark */
+    --clay-card-shadow: 14px 18px 36px rgba(0, 0, 0, 0.58), -6px -6px 20px rgba(255, 255, 255, 0.025);
+    --clay-card-inner: inset 2px 2px 3px rgba(255, 255, 255, 0.1), inset -3px -3px 6px rgba(0, 0, 0, 0.5);
+    --clay-btn-shadow: 8px 12px 24px rgba(0, 0, 0, 0.5), -4px -4px 12px rgba(255, 255, 255, 0.035);
+    --clay-btn-inner: inset 2px 2px 3px rgba(255, 255, 255, 0.12), inset -2px -2px 4px rgba(0, 0, 0, 0.55);
+    --clay-inset-shadow: inset 4px 5px 10px rgba(0, 0, 0, 0.65), inset -3px -3px 8px rgba(255, 255, 255, 0.035);
+
+    --neu-raised: var(--clay-card-shadow);
+    --neu-raised-sm: var(--clay-btn-shadow);
+    --neu-raised-lg: 18px 24px 44px rgba(0, 0, 0, 0.68), -10px -10px 24px rgba(255, 255, 255, 0.03);
+    --neu-inset: var(--clay-inset-shadow);
+    --neu-inset-sm: inset 2px 3px 6px rgba(0, 0, 0, 0.55), inset -2px -3px 6px rgba(255, 255, 255, 0.03);
   }
 
   body {
@@ -57,65 +65,70 @@
   font-family: 'Kalam', 'Caveat', cursive, sans-serif;
 }
 
-/* Custom Neumorphic utility classes */
-.neu-raised {
-  box-shadow: var(--neu-raised);
+/* Custom Claymorphic & Neumorphic utility classes */
+.clay-card, .neu-card {
+  box-shadow: var(--clay-card-shadow), var(--clay-card-inner);
+  border-radius: 1.75rem;
+  background-color: var(--card-main);
+  transition: box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.neu-raised-sm {
-  box-shadow: var(--neu-raised-sm);
+.clay-card:hover, .neu-card-hover:hover {
+  transform: translateY(-3px) scale(1.005);
+  box-shadow: var(--neu-raised-lg), var(--clay-card-inner);
 }
 
-.neu-raised-lg {
-  box-shadow: var(--neu-raised-lg);
+.clay-btn, .neu-btn {
+  box-shadow: var(--clay-btn-shadow), var(--clay-btn-inner);
+  border-radius: 1.15rem;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  user-select: none;
 }
 
-.neu-inset {
-  box-shadow: var(--neu-inset);
+.clay-btn:hover, .neu-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.04);
 }
 
-.neu-inset-sm {
+.clay-btn:active, .neu-btn:active, .neu-btn-active {
+  box-shadow: var(--clay-inset-shadow);
+  transform: translateY(1px) scale(0.97);
+}
+
+.clay-inset, .neu-inset {
+  box-shadow: var(--clay-inset-shadow);
+  border-radius: 1.15rem;
+}
+
+.clay-inset-sm, .neu-inset-sm {
   box-shadow: var(--neu-inset-sm);
+  border-radius: 0.85rem;
 }
 
-.neu-btn {
-  box-shadow: var(--neu-raised-sm);
+.clay-input, .neu-input {
+  box-shadow: var(--clay-inset-shadow);
+  background-color: var(--bg-main);
+  border: 1.5px solid var(--border-color);
+  border-radius: 1.15rem;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.neu-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--neu-raised);
-}
-
-.neu-btn:active, .neu-btn-active {
-  box-shadow: var(--neu-inset-sm);
-  transform: translateY(0);
-}
-
-.neu-card {
-  box-shadow: var(--neu-raised);
-  border-radius: 1.25rem;
-  background-color: var(--card-main);
-  transition: box-shadow 0.25s ease, transform 0.2s ease;
-}
-
-.neu-card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--neu-raised-lg);
-}
-
-.neu-input {
-  box-shadow: var(--neu-inset-sm);
-  background-color: var(--bg-main);
-  border: 1px solid var(--border-color);
-  transition: all 0.2s ease;
-}
-
-.neu-input:focus {
+.clay-input:focus, .neu-input:focus {
   outline: none;
-  box-shadow: var(--neu-inset);
-  border-color: rgba(148, 163, 184, 0.5);
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: var(--clay-inset-shadow), 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.neu-raised {
+  box-shadow: var(--clay-card-shadow), var(--clay-card-inner);
+}
+
+.neu-raised-sm {
+  box-shadow: var(--clay-btn-shadow), var(--clay-btn-inner);
+}
+
+.neu-raised-lg {
+  box-shadow: var(--neu-raised-lg), var(--clay-card-inner);
 }
 
 /* Realistic Post-It Sticky Note Styling */

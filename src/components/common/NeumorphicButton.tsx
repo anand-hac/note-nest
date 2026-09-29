@@ -22,10 +22,10 @@ export const NeumorphicButton: React.FC<NeumorphicButtonProps> = ({
   };
 
   const sizeClasses = {
-    sm: 'px-3 py-1.5 text-xs font-medium rounded-xl gap-1.5',
-    md: 'px-4 py-2 text-sm font-medium rounded-xl gap-2',
-    lg: 'px-6 py-3 text-base font-semibold rounded-2xl gap-2.5',
-    icon: 'p-2.5 rounded-xl aspect-square',
+    sm: 'px-3.5 py-1.5 text-xs font-semibold rounded-2xl gap-1.5 active:scale-95',
+    md: 'px-4.5 py-2.5 text-sm font-semibold rounded-2xl gap-2 active:scale-95',
+    lg: 'px-6 py-3.5 text-base font-bold rounded-3xl gap-2.5 active:scale-95',
+    icon: 'p-2.5 rounded-2xl aspect-square active:scale-90',
   }[size];
 
   let variantClasses = '';
@@ -38,9 +38,9 @@ export const NeumorphicButton: React.FC<NeumorphicButtonProps> = ({
   } else if (variant === 'danger') {
     variantClasses = 'neu-btn text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20';
   } else if (variant === 'flat') {
-    variantClasses = 'bg-slate-200 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-800';
+    variantClasses = 'bg-slate-200 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-800 rounded-2xl';
   } else if (variant === 'ghost') {
-    variantClasses = 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5';
+    variantClasses = 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl';
   }
 
   return (
