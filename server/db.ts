@@ -15,7 +15,7 @@ import {
   WorkExperience
 } from './types.js';
 import { isPostgresAvailable, query } from './db/postgres.js';
-import { postgresRepo, mapUserRow } from './db/postgresRepository.js';
+import { postgresRepo, mapUserRow, mapNoteRow, mapReminderRow, mapMediaRow } from './db/postgresRepository.js';
 
 const DB_FILE = process.env.VERCEL
   ? path.resolve('/tmp', 'db.json')
@@ -284,7 +284,7 @@ const getInitialData = (): DatabaseSchema => {
 };
 
 export class Database {
-  private data: DatabaseSchema;
+  public data: DatabaseSchema;
   private isSaving: boolean = false;
   private saveQueued: boolean = false;
 
@@ -428,6 +428,7 @@ export class Database {
   async syncWithPostgres(): Promise<void> {
     if (!isPostgresAvailable()) return;
     try {
+      // 1. Synchronize Users
       const pgUsers = await query('SELECT * FROM users');
       for (const row of pgUsers.rows) {
         const u = mapUserRow(row);
@@ -455,8 +456,85 @@ export class Database {
           }
         }
       }
+
+      // 2. Synchronize Notes (Sticky Notes)
+      const pgNotes = await query('SELECT * FROM notes');
+      for (const row of pgNotes.rows) {
+        const n = mapNoteRow(row);
+        const idx = this.data.notes.findIndex(x => x.id === n.id);
+        if (idx !== -1) {
+          this.data.notes[idx] = { ...this.data.notes[idx], ...n };
+        } else {
+          this.data.notes.push(n);
+        }
+      }
+
+      // Ensure any existing in-memory notes exist in PostgreSQL
+      for (const note of this.data.notes) {
+        const check = await query('SELECT id FROM notes WHERE id = $1 LIMIT 1', [note.id]);
+        if (check.rowCount === 0) {
+          try {
+            const userCheck = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [note.userId]);
+            if (userCheck.rowCount > 0) {
+              await postgresRepo.createNote(note);
+            }
+          } catch (e: any) {}
+        }
+      }
+
+      // 3. Synchronize Reminders
+      const pgReminders = await query('SELECT * FROM reminders');
+      for (const row of pgReminders.rows) {
+        const r = mapReminderRow(row);
+        const idx = this.data.reminders.findIndex(x => x.id === r.id);
+        if (idx !== -1) {
+          this.data.reminders[idx] = { ...this.data.reminders[idx], ...r };
+        } else {
+          this.data.reminders.push(r);
+        }
+      }
+
+      // Ensure any existing in-memory reminders exist in PostgreSQL
+      for (const rem of this.data.reminders) {
+        const check = await query('SELECT id FROM reminders WHERE id = $1 LIMIT 1', [rem.id]);
+        if (check.rowCount === 0) {
+          try {
+            const userCheck = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [rem.userId]);
+            if (userCheck.rowCount > 0) {
+              await postgresRepo.createReminder(rem);
+            }
+          } catch (e: any) {}
+        }
+      }
+
+      // 4. Synchronize Media Posts (Profile Media)
+      if (!this.data.mediaPosts) this.data.mediaPosts = [];
+      const pgMedia = await query('SELECT * FROM media_posts');
+      for (const row of pgMedia.rows) {
+        const m = mapMediaRow(row);
+        const idx = this.data.mediaPosts.findIndex(x => x.id === m.id);
+        if (idx !== -1) {
+          this.data.mediaPosts[idx] = { ...this.data.mediaPosts[idx], ...m };
+        } else {
+          this.data.mediaPosts.push(m);
+        }
+      }
+
+      // Ensure any existing in-memory media posts exist in PostgreSQL
+      for (const post of this.data.mediaPosts) {
+        const check = await query('SELECT id FROM media_posts WHERE id = $1 LIMIT 1', [post.id]);
+        if (check.rowCount === 0) {
+          try {
+            const userCheck = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [post.userId]);
+            if (userCheck.rowCount > 0) {
+              await postgresRepo.createMediaPost(post);
+            }
+          } catch (e: any) {}
+        }
+      }
+
       await this.persist();
-      console.log(`[DB] Successfully synchronized ${this.data.users.length} users with PostgreSQL.`);
+      console.log(`[DB] Successfully synchronized PostgreSQL: ${this.data.users.length} users, ${this.data.notes.length} notes, ${this.data.reminders.length} reminders, ${this.data.mediaPosts.length} media posts.`);
     } catch (err: any) {
       console.error('[DB] PostgreSQL synchronization error:', err.message);
     }
@@ -628,6 +706,10 @@ export class Database {
     this.data.mediaPosts.unshift(post);
     if (isPostgresAvailable()) {
       try {
+        const uCheck = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [user.id]);
+        if (uCheck.rowCount === 0) {
+          await postgresRepo.createUser(user);
+        }
         await postgresRepo.createMediaPost(post);
       } catch (err: any) {
         console.error('PostgreSQL createMediaPost error:', err.message);
@@ -793,6 +875,13 @@ export class Database {
     this.data.notes.unshift(note);
     if (isPostgresAvailable()) {
       try {
+        const uCheck = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [note.userId]);
+        if (uCheck.rowCount === 0) {
+          const userObj = this.findUserById(note.userId);
+          if (userObj) {
+            await postgresRepo.createUser(userObj);
+          }
+        }
         await postgresRepo.createNote(note);
       } catch (err: any) {
         console.error('PostgreSQL createNote error:', err.message);
@@ -851,6 +940,13 @@ export class Database {
     this.data.reminders.push(reminder);
     if (isPostgresAvailable()) {
       try {
+        const uCheck = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [reminder.userId]);
+        if (uCheck.rowCount === 0) {
+          const userObj = this.findUserById(reminder.userId);
+          if (userObj) {
+            await postgresRepo.createUser(userObj);
+          }
+        }
         await postgresRepo.createReminder(reminder);
       } catch (err: any) {
         console.error('PostgreSQL createReminder error:', err.message);

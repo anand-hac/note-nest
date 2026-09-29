@@ -112,7 +112,16 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const cleanId = identifier.trim().toLowerCase();
-    const user = db.findUserByEmail(cleanId) || db.findUserByUsername(cleanId);
+    let user = db.findUserByEmail(cleanId) || db.findUserByUsername(cleanId);
+    if (!user && isPostgresAvailable()) {
+      try {
+        const pgUser = (await postgresRepo.findUserByEmail(cleanId)) || (await postgresRepo.findUserByUsername(cleanId));
+        if (pgUser) {
+          db.syncUserFromPg(pgUser);
+          user = pgUser;
+        }
+      } catch (e) {}
+    }
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials. User not found.' });
@@ -211,13 +220,31 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 // Get current user profile (supports both /api/auth/me and /api/users/me)
-app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const current = db.findUserById(req.user!.id);
+app.get('/api/auth/me', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  let current = db.findUserById(req.user!.id);
+  if (!current && isPostgresAvailable()) {
+    try {
+      const pgUser = await postgresRepo.findUserById(req.user!.id);
+      if (pgUser) {
+        db.syncUserFromPg(pgUser);
+        current = pgUser;
+      }
+    } catch (e) {}
+  }
   res.json({ user: current ? db.toSafeUser(current) : req.user });
 });
 
-app.get('/api/users/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const current = db.findUserById(req.user!.id);
+app.get('/api/users/me', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  let current = db.findUserById(req.user!.id);
+  if (!current && isPostgresAvailable()) {
+    try {
+      const pgUser = await postgresRepo.findUserById(req.user!.id);
+      if (pgUser) {
+        db.syncUserFromPg(pgUser);
+        current = pgUser;
+      }
+    } catch (e) {}
+  }
   res.json({ user: current ? db.toSafeUser(current) : req.user });
 });
 
@@ -393,8 +420,26 @@ app.post('/api/users/invite', requireAuth, async (req: AuthenticatedRequest, res
 // ----------------------------------------------------
 
 // Get all notes for user (both owned and shared)
-app.get('/api/notes', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/notes', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
+  if (isPostgresAvailable()) {
+    try {
+      const pgNotes = await postgresRepo.getNotes(userId);
+      if (pgNotes && pgNotes.length > 0) {
+        for (const n of pgNotes) {
+          const idx = db.data.notes.findIndex(x => x.id === n.id);
+          if (idx !== -1) {
+            db.data.notes[idx] = { ...db.data.notes[idx], ...n };
+          } else {
+            db.data.notes.push(n);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error('Error fetching notes from PG:', e.message);
+    }
+  }
+
   const { owned, shared } = db.getNotesForUser(userId);
   res.json({ owned, shared });
 });
@@ -621,8 +666,26 @@ app.delete('/api/notes/:id/share/:collaboratorUserId', requireAuth, async (req: 
 // ----------------------------------------------------
 
 // Get all reminders
-app.get('/api/reminders', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/reminders', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
+  if (isPostgresAvailable()) {
+    try {
+      const pgReminders = await postgresRepo.getReminders(userId);
+      if (pgReminders && pgReminders.length > 0) {
+        for (const r of pgReminders) {
+          const idx = db.data.reminders.findIndex(x => x.id === r.id);
+          if (idx !== -1) {
+            db.data.reminders[idx] = { ...db.data.reminders[idx], ...r };
+          } else {
+            db.data.reminders.push(r);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error('Error fetching reminders from PG:', e.message);
+    }
+  }
+
   const reminders = db.getRemindersForUser(userId);
   res.json({ reminders });
 });
@@ -875,8 +938,28 @@ app.get('/api/export', requireAuth, (req: AuthenticatedRequest, res: Response) =
 // ----------------------------------------------------
 
 // Get all media posts
-app.get('/api/media', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/media', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const { search, type, userId, onlyConnections } = req.query;
+
+  if (isPostgresAvailable()) {
+    try {
+      const pgMedia = await postgresRepo.getMediaPosts();
+      if (pgMedia && pgMedia.length > 0) {
+        if (!db.data.mediaPosts) db.data.mediaPosts = [];
+        for (const m of pgMedia) {
+          const idx = db.data.mediaPosts.findIndex(x => x.id === m.id);
+          if (idx !== -1) {
+            db.data.mediaPosts[idx] = { ...db.data.mediaPosts[idx], ...m };
+          } else {
+            db.data.mediaPosts.push(m);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error('Error fetching media from PG:', e.message);
+    }
+  }
+
   const posts = db.getMediaPosts({
     search: search as string,
     type: type as 'photo' | 'video',
@@ -984,6 +1067,24 @@ app.get('/api/users/:id', requireAuth, async (req: AuthenticatedRequest, res: Re
     } catch (e) {}
   }
   if (!user) return res.status(404).json({ error: 'User not found.' });
+
+  // Ensure media is synchronized from PostgreSQL
+  if (isPostgresAvailable()) {
+    try {
+      const pgMedia = await postgresRepo.getMediaPosts();
+      if (pgMedia && pgMedia.length > 0) {
+        if (!db.data.mediaPosts) db.data.mediaPosts = [];
+        for (const m of pgMedia) {
+          const idx = db.data.mediaPosts.findIndex(x => x.id === m.id);
+          if (idx !== -1) {
+            db.data.mediaPosts[idx] = { ...db.data.mediaPosts[idx], ...m };
+          } else {
+            db.data.mediaPosts.push(m);
+          }
+        }
+      }
+    } catch (e) {}
+  }
 
   const safe = db.toSafeUser(user);
   const userMedia = db.getMediaPosts({ userId: user.id });
