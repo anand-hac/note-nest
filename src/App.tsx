@@ -20,7 +20,7 @@ import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { UserProfileModal } from './components/profile/UserProfileModal';
 import { EditProfileModal } from './components/profile/EditProfileModal';
 import { Note, Reminder, AppStats, User, MediaPost } from './types';
-import { api } from './utils/api';
+import { api, getAuthToken } from './utils/api';
 import { sound } from './utils/sound';
 
 const MainApp: React.FC = () => {
@@ -233,7 +233,7 @@ const MainApp: React.FC = () => {
     );
   }
 
-  if (!user) {
+  if (!user || !getAuthToken()) {
     return <AuthPage />;
   }
 

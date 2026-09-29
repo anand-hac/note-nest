@@ -44,6 +44,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     refreshUser();
+
+    const handleUnauthorized = () => {
+      setUser(null);
+    };
+    window.addEventListener('notenest_unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('notenest_unauthorized', handleUnauthorized);
   }, []);
 
   const login = async (identifier: string, pass: string) => {
