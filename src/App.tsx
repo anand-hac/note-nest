@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider, useNotifications } from './context/NotificationContext';
@@ -23,6 +23,52 @@ import { Note, Reminder, AppStats, User, MediaPost } from './types';
 import { api, getAuthToken } from './utils/api';
 import { sound } from './utils/sound';
 
+// Local storage helpers for offline-first resilience & hosted refresh preservation
+const getStoredNotes = (userId: string): Note[] => {
+  try {
+    const raw = localStorage.getItem(`notenest_notes_${userId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const setStoredNotes = (userId: string, notes: Note[]) => {
+  try {
+    localStorage.setItem(`notenest_notes_${userId}`, JSON.stringify(notes));
+  } catch {}
+};
+
+const getStoredSharedNotes = (userId: string): Note[] => {
+  try {
+    const raw = localStorage.getItem(`notenest_shared_${userId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const setStoredSharedNotes = (userId: string, notes: Note[]) => {
+  try {
+    localStorage.setItem(`notenest_shared_${userId}`, JSON.stringify(notes));
+  } catch {}
+};
+
+const getStoredReminders = (userId: string): Reminder[] => {
+  try {
+    const raw = localStorage.getItem(`notenest_reminders_${userId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const setStoredReminders = (userId: string, reminders: Reminder[]) => {
+  try {
+    localStorage.setItem(`notenest_reminders_${userId}`, JSON.stringify(reminders));
+  } catch {}
+};
+
 const MainApp: React.FC = () => {
   const { user, loading, refreshUser } = useAuth();
   const { checkRemindersNow } = useNotifications();
@@ -31,12 +77,11 @@ const MainApp: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Data states
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [sharedNotes, setSharedNotes] = useState<Note[]>([]);
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+  // Data states initialized immediately from localStorage so refresh never blanks out
+  const [notes, setNotes] = useState<Note[]>(() => (user ? getStoredNotes(user.id) : []));
+  const [sharedNotes, setSharedNotes] = useState<Note[]>(() => (user ? getStoredSharedNotes(user.id) : []));
+  const [reminders, setReminders] = useState<Reminder[]>(() => (user ? getStoredReminders(user.id) : []));
   const [stats, setStats] = useState<AppStats | null>(null);
-  const [fetchingData, setFetchingData] = useState(false);
 
   // Modals state
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
@@ -55,7 +100,6 @@ const MainApp: React.FC = () => {
 
   const loadAllData = useCallback(async () => {
     if (!user) return;
-    setFetchingData(true);
     try {
       const [notesRes, remRes, statsRes] = await Promise.all([
         api.getNotes(),
@@ -63,14 +107,38 @@ const MainApp: React.FC = () => {
         api.getStats(),
       ]);
 
-      setNotes(notesRes.owned);
+      const localNotes = getStoredNotes(user.id);
+      const localReminders = getStoredReminders(user.id);
+
+      // Guard against ephemeral serverless cold starts resetting user data:
+      if (notesRes.owned.length === 0 && localNotes.length > 0) {
+        setNotes(localNotes);
+        api.syncAll({ notes: localNotes, reminders: localReminders }).catch(console.error);
+      } else {
+        setNotes(notesRes.owned);
+        setStoredNotes(user.id, notesRes.owned);
+      }
+
       setSharedNotes(notesRes.shared);
-      setReminders(remRes.reminders);
+      setStoredSharedNotes(user.id, notesRes.shared);
+
+      if (remRes.reminders.length === 0 && localReminders.length > 0) {
+        setReminders(localReminders);
+      } else {
+        setReminders(remRes.reminders);
+        setStoredReminders(user.id, remRes.reminders);
+      }
+
       setStats(statsRes);
     } catch (err) {
-      console.error('Failed to load workspace data:', err);
-    } finally {
-      setFetchingData(false);
+      console.error('Failed to load workspace data from API:', err);
+      // Fallback seamlessly to local cache
+      const localNotes = getStoredNotes(user.id);
+      const localShared = getStoredSharedNotes(user.id);
+      const localReminders = getStoredReminders(user.id);
+      if (localNotes.length > 0) setNotes(localNotes);
+      if (localShared.length > 0) setSharedNotes(localShared);
+      if (localReminders.length > 0) setReminders(localReminders);
     }
   }, [user]);
 
@@ -79,6 +147,36 @@ const MainApp: React.FC = () => {
       loadAllData();
     }
   }, [user, loadAllData]);
+
+  // Derived dynamic stats to guarantee zero-delay, always-accurate KPI counters
+  const effectiveStats: AppStats = useMemo(() => {
+    const now = Date.now();
+    const todayStart = new Date().setHours(0, 0, 0, 0);
+    const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+
+    const activeReminders = reminders.filter(r => !r.isCompleted).length;
+    const dueTodayReminders = reminders.filter(r => {
+      if (r.isCompleted) return false;
+      const t = new Date(r.dueDateTime).getTime();
+      return t >= todayStart && t <= todayEnd;
+    }).length;
+    const overdueReminders = reminders.filter(r => {
+      if (r.isCompleted) return false;
+      return new Date(r.dueDateTime).getTime() < now;
+    }).length;
+
+    return {
+      totalNotes: notes.length,
+      pinnedNotes: notes.filter(n => n.isPinned).length,
+      sharedWithMe: sharedNotes.length,
+      totalReminders: reminders.length,
+      activeReminders,
+      completedReminders: reminders.filter(r => r.isCompleted).length,
+      dueTodayReminders,
+      overdueReminders,
+      unreadMessages: stats?.unreadMessages ?? 0,
+    };
+  }, [notes, sharedNotes, reminders, stats]);
 
   // Note actions
   const handleOpenNewNote = () => {
@@ -96,22 +194,32 @@ const MainApp: React.FC = () => {
   const handleSaveNote = async (
     noteData: Partial<Note> & { reminder?: { title: string; dueDateTime: string; priority: string } }
   ) => {
-    let savedNote: Note;
     if (editingNote) {
       const res = await api.updateNote(editingNote.id, noteData);
-      savedNote = res.note;
-      setNotes(prev => prev.map(n => (n.id === res.note.id ? res.note : n)));
-      setSharedNotes(prev => prev.map(n => (n.id === res.note.id ? res.note : n)));
+      setNotes(prev => {
+        const next = prev.map(n => (n.id === res.note.id ? res.note : n));
+        if (user) setStoredNotes(user.id, next);
+        return next;
+      });
+      setSharedNotes(prev => {
+        const next = prev.map(n => (n.id === res.note.id ? res.note : n));
+        if (user) setStoredSharedNotes(user.id, next);
+        return next;
+      });
     } else {
       const res = await api.createNote(noteData);
-      savedNote = res.note;
-      setNotes(prev => [res.note, ...prev]);
+      setNotes(prev => {
+        const next = [res.note, ...prev];
+        if (user) setStoredNotes(user.id, next);
+        return next;
+      });
     }
 
     // If an associated reminder was created/updated
     if (noteData.reminder && noteData.reminder.dueDateTime) {
       const remRes = await api.getReminders();
       setReminders(remRes.reminders);
+      if (user) setStoredReminders(user.id, remRes.reminders);
       checkRemindersNow();
     }
 
@@ -122,17 +230,36 @@ const MainApp: React.FC = () => {
   const handleDeleteNote = async (id: string) => {
     sound.playClick();
     await api.deleteNote(id);
-    setNotes(prev => prev.filter(n => n.id !== id));
-    setSharedNotes(prev => prev.filter(n => n.id !== id));
-    // Also remove any linked reminders from state
-    setReminders(prev => prev.filter(r => r.noteId !== id));
+    setNotes(prev => {
+      const next = prev.filter(n => n.id !== id);
+      if (user) setStoredNotes(user.id, next);
+      return next;
+    });
+    setSharedNotes(prev => {
+      const next = prev.filter(n => n.id !== id);
+      if (user) setStoredSharedNotes(user.id, next);
+      return next;
+    });
+    setReminders(prev => {
+      const next = prev.filter(r => r.noteId !== id);
+      if (user) setStoredReminders(user.id, next);
+      return next;
+    });
   };
 
   const handleTogglePin = async (note: Note) => {
     sound.playClick();
     const res = await api.updateNote(note.id, { isPinned: !note.isPinned });
-    setNotes(prev => prev.map(n => (n.id === note.id ? res.note : n)));
-    setSharedNotes(prev => prev.map(n => (n.id === note.id ? res.note : n)));
+    setNotes(prev => {
+      const next = prev.map(n => (n.id === res.note.id ? res.note : n));
+      if (user) setStoredNotes(user.id, next);
+      return next;
+    });
+    setSharedNotes(prev => {
+      const next = prev.map(n => (n.id === res.note.id ? res.note : n));
+      if (user) setStoredSharedNotes(user.id, next);
+      return next;
+    });
   };
 
   const handleOpenShare = (note: Note) => {
@@ -142,8 +269,16 @@ const MainApp: React.FC = () => {
   };
 
   const handleNoteUpdatedFromShare = (updatedNote: Note) => {
-    setNotes(prev => prev.map(n => (n.id === updatedNote.id ? updatedNote : n)));
-    setSharedNotes(prev => prev.map(n => (n.id === updatedNote.id ? updatedNote : n)));
+    setNotes(prev => {
+      const next = prev.map(n => (n.id === updatedNote.id ? updatedNote : n));
+      if (user) setStoredNotes(user.id, next);
+      return next;
+    });
+    setSharedNotes(prev => {
+      const next = prev.map(n => (n.id === updatedNote.id ? updatedNote : n));
+      if (user) setStoredSharedNotes(user.id, next);
+      return next;
+    });
   };
 
   // Reminder actions
@@ -162,10 +297,18 @@ const MainApp: React.FC = () => {
   const handleSaveReminder = async (remData: Partial<Reminder>) => {
     if (editingReminder) {
       const res = await api.updateReminder(editingReminder.id, remData);
-      setReminders(prev => prev.map(r => (r.id === res.reminder.id ? res.reminder : r)));
+      setReminders(prev => {
+        const next = prev.map(r => (r.id === res.reminder.id ? res.reminder : r));
+        if (user) setStoredReminders(user.id, next);
+        return next;
+      });
     } else {
       const res = await api.createReminder(remData as any);
-      setReminders(prev => [...prev, res.reminder]);
+      setReminders(prev => {
+        const next = [...prev, res.reminder];
+        if (user) setStoredReminders(user.id, next);
+        return next;
+      });
     }
 
     sound.playChime();
@@ -176,24 +319,36 @@ const MainApp: React.FC = () => {
   const handleToggleReminder = async (id: string) => {
     sound.playClick();
     const res = await api.toggleReminder(id);
-    setReminders(prev => prev.map(r => (r.id === id ? res.reminder : r)));
+    setReminders(prev => {
+      const next = prev.map(r => (r.id === id ? res.reminder : r));
+      if (user) setStoredReminders(user.id, next);
+      return next;
+    });
     checkRemindersNow();
   };
 
   const handleDeleteReminder = async (id: string) => {
     sound.playClick();
     await api.deleteReminder(id);
-    setReminders(prev => prev.filter(r => r.id !== id));
+    setReminders(prev => {
+      const next = prev.filter(r => r.id !== id);
+      if (user) setStoredReminders(user.id, next);
+      return next;
+    });
   };
 
-  const handleQuickCreateNote = async (title: string, color: any) => {
+  const handleQuickCreateNote = async (title: string, content: string = '', color: any = 'yellow') => {
     const res = await api.createNote({
-      title,
-      color,
-      content: '',
-      tags: [],
+      title: title.trim() || 'Sticky Note',
+      content: content.trim() || '',
+      color: color || 'yellow',
+      tags: ['sticky'],
     });
-    setNotes(prev => [res.note, ...prev]);
+    setNotes(prev => {
+      const next = [res.note, ...prev];
+      if (user) setStoredNotes(user.id, next);
+      return next;
+    });
     sound.playChime();
   };
 
@@ -204,7 +359,11 @@ const MainApp: React.FC = () => {
     noteId?: string | null;
   }) => {
     const res = await api.createReminder(payload);
-    setReminders(prev => [...prev, res.reminder]);
+    setReminders(prev => {
+      const next = [...prev, res.reminder];
+      if (user) setStoredReminders(user.id, next);
+      return next;
+    });
     sound.playChime();
     checkRemindersNow();
   };
@@ -260,7 +419,7 @@ const MainApp: React.FC = () => {
           currentPage={currentPage}
           onNavigate={setCurrentPage}
           onOpenNewNote={handleOpenNewNote}
-          stats={stats}
+          stats={effectiveStats}
           isOpenMobile={isMobileMenuOpen}
           onCloseMobile={() => setIsMobileMenuOpen(false)}
         />
@@ -272,7 +431,7 @@ const MainApp: React.FC = () => {
               notes={notes}
               sharedNotes={sharedNotes}
               reminders={reminders}
-              stats={stats}
+              stats={effectiveStats}
               onNavigate={setCurrentPage}
               onOpenNewNote={handleOpenNewNote}
               onEditNote={handleEditNote}
@@ -302,7 +461,7 @@ const MainApp: React.FC = () => {
           {currentPage === 'showcase' && (
             <ShowcasePage
               currentUser={user}
-              onOpenChatWithUser={(targetUser) => {
+              onOpenChatWithUser={(_targetUser) => {
                 setCurrentPage('chat');
               }}
             />
@@ -380,7 +539,7 @@ const MainApp: React.FC = () => {
         onSelectUser={(userId) => {
           setViewProfileUserId(userId);
         }}
-        onSelectMedia={(media) => {
+        onSelectMedia={(_media) => {
           setCurrentPage('showcase');
         }}
       />
@@ -392,7 +551,7 @@ const MainApp: React.FC = () => {
         currentUserId={user.id}
         isOpen={Boolean(viewProfileUserId)}
         onClose={() => setViewProfileUserId(null)}
-        onOpenChatWithUser={(chatTarget) => {
+        onOpenChatWithUser={(_chatTarget) => {
           setCurrentPage('chat');
         }}
         onOpenEditProfile={() => setIsEditProfileOpen(true)}
@@ -404,7 +563,7 @@ const MainApp: React.FC = () => {
           user={user}
           isOpen={isEditProfileOpen}
           onClose={() => setIsEditProfileOpen(false)}
-          onProfileUpdated={async (updated) => {
+          onProfileUpdated={async (_updated) => {
             await refreshUser();
           }}
         />

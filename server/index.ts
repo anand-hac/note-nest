@@ -7,7 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './db.js';
-import { initPostgresSchema, isPostgresAvailable } from './db/postgres.js';
+import { initPostgresSchema, isPostgresAvailable, ensurePostgresConnected } from './db/postgres.js';
 import { postgresRepo } from './db/postgresRepository.js';
 import { requireAuth, AuthenticatedRequest, generateToken, hashPassword, comparePassword } from './auth.js';
 import { Note, Reminder, User, Collaborator, ChatMessage, OnlineStatus } from './types.js';
@@ -22,6 +22,23 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Request logger for debugging
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// Lazy DB initialization check for incoming API calls (vital for serverless cold starts)
+app.use(async (req, res, next) => {
+  if (req.url.startsWith('/api')) {
+    try {
+      if (!isPostgresAvailable()) {
+        const connected = await ensurePostgresConnected();
+        if (connected) {
+          await db.syncWithPostgres();
+        }
+      }
+    } catch (e) {
+      // non-blocking fallback
+    }
+  }
   next();
 });
 
@@ -885,8 +902,36 @@ app.put('/api/chat/presence', requireAuth, async (req: AuthenticatedRequest, res
 // ----------------------------------------------------
 // STATS & BACKUP
 // ----------------------------------------------------
-app.get('/api/stats', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/stats', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.id;
+
+  if (isPostgresAvailable()) {
+    try {
+      const pgNotes = await postgresRepo.getNotes(userId);
+      if (pgNotes && pgNotes.length > 0) {
+        for (const n of pgNotes) {
+          const idx = db.data.notes.findIndex(x => x.id === n.id);
+          if (idx !== -1) {
+            db.data.notes[idx] = { ...db.data.notes[idx], ...n };
+          } else {
+            db.data.notes.push(n);
+          }
+        }
+      }
+      const pgReminders = await postgresRepo.getReminders(userId);
+      if (pgReminders && pgReminders.length > 0) {
+        for (const r of pgReminders) {
+          const idx = db.data.reminders.findIndex(x => x.id === r.id);
+          if (idx !== -1) {
+            db.data.reminders[idx] = { ...db.data.reminders[idx], ...r };
+          } else {
+            db.data.reminders.push(r);
+          }
+        }
+      }
+    } catch (e: any) {}
+  }
+
   const { owned, shared } = db.getNotesForUser(userId);
   const reminders = db.getRemindersForUser(userId);
 
@@ -918,6 +963,44 @@ app.get('/api/stats', requireAuth, (req: AuthenticatedRequest, res: Response) =>
     overdueReminders: overdue,
     unreadMessages: db.getUnreadMessageCount(userId),
   });
+});
+
+// Bulk sync endpoint for client-side persistence and recovery
+app.post('/api/sync', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    const { notes, reminders } = req.body;
+    let syncedNotes = 0;
+    let syncedReminders = 0;
+
+    if (Array.isArray(notes)) {
+      for (const note of notes) {
+        if (!note || !note.id) continue;
+        const noteWithUser = { ...note, userId: user.id, ownerUsername: user.username, ownerName: user.name };
+        const existing = db.findNoteById(note.id);
+        if (!existing) {
+          await db.createNote(noteWithUser);
+          syncedNotes++;
+        }
+      }
+    }
+
+    if (Array.isArray(reminders)) {
+      for (const rem of reminders) {
+        if (!rem || !rem.id) continue;
+        const remWithUser = { ...rem, userId: user.id };
+        const existing = db.findReminderById(rem.id);
+        if (!existing) {
+          await db.createReminder(remWithUser);
+          syncedReminders++;
+        }
+      }
+    }
+
+    res.json({ success: true, syncedNotes, syncedReminders });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Sync failed', details: err.message });
+  }
 });
 
 // Export all user data as JSON backup
@@ -1145,23 +1228,24 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-if (!process.env.VERCEL) {
-  initPostgresSchema()
-    .then(async (connected) => {
-      if (connected) {
-        await db.syncWithPostgres();
-      }
-    })
-    .catch((err) => {
-      console.warn('PostgreSQL startup check notice:', err.message);
-    })
-    .finally(() => {
+// Start DB sync in background on both local & cloud/serverless
+ensurePostgresConnected()
+  .then(async (connected) => {
+    if (connected) {
+      await db.syncWithPostgres();
+    }
+  })
+  .catch((err) => {
+    console.warn('PostgreSQL startup check notice:', err.message);
+  })
+  .finally(() => {
+    if (!process.env.VERCEL) {
       app.listen(PORT, () => {
         console.log(`Note Nest backend server running on http://localhost:${PORT}`);
         console.log(`REST API ready at http://localhost:${PORT}/api/`);
       });
-    });
-}
+    }
+  });
 
 export default app;
 

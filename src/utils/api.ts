@@ -320,4 +320,12 @@ export const api = {
   async universalSearch(query: string) {
     return request<UniversalSearchResults>(`/search?q=${encodeURIComponent(query)}`);
   },
+
+  // Bulk sync client-cached data
+  async syncAll(payload: { notes?: Note[]; reminders?: Reminder[] }) {
+    return request<{ success: boolean; syncedNotes: number; syncedReminders: number }>('/sync', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
 };
