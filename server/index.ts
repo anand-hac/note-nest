@@ -200,15 +200,20 @@ app.post('/api/auth/google', async (req, res) => {
       await db.createUser(newUser);
       existingUser = newUser;
     } else {
-      // Existing user logging in - preserve custom avatar unless it was just the initial placeholder
-      if (avatarUrl && (!existingUser.avatarUrl || existingUser.avatarUrl.includes('dicebear'))) {
-        await db.updateUser(existingUser.id, { avatarUrl });
-      }
-      await db.updateUserPresence(existingUser.id, 'online');
+      // Existing user logging in - update avatar and name if provided
+      const updates: Partial<User> = { status: 'online', lastActive: new Date().toISOString() };
+      if (avatarUrl) updates.avatarUrl = avatarUrl;
+      if (name && name.trim()) updates.name = name.trim();
+      await db.updateUser(existingUser.id, updates);
     }
 
     // Always fetch the freshest user record with all saved profile data, cover, and history
-    const freshUser = db.findUserById(existingUser.id) || existingUser;
+    const freshUser = db.findUserById(existingUser.id) || db.findUserByEmail(cleanEmail) || existingUser;
+    if (isPostgresAvailable()) {
+      try {
+        await postgresRepo.createUser(freshUser);
+      } catch (e) {}
+    }
     const safeUser = db.toSafeUser(freshUser);
     const token = generateToken(safeUser);
 

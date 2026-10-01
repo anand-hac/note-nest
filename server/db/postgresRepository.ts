@@ -114,6 +114,12 @@ export const postgresRepo = {
   },
 
   async createUser(user: User): Promise<User> {
+    const existingByEmail = await this.findUserByEmail(user.email);
+    if (existingByEmail && existingByEmail.id !== user.id) {
+      const updated = await this.updateUser(existingByEmail.id, user);
+      if (updated) return updated;
+    }
+
     const sql = `
       INSERT INTO users (
         id, username, email, name, password_hash, avatar_url, cover_url,
@@ -126,6 +132,23 @@ export const postgresRepo = {
         $15, $16, $17, $18, $19,
         $20, $21
       )
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+        cover_url = COALESCE(EXCLUDED.cover_url, users.cover_url),
+        status = EXCLUDED.status,
+        custom_status = COALESCE(EXCLUDED.custom_status, users.custom_status),
+        bio = COALESCE(EXCLUDED.bio, users.bio),
+        role = EXCLUDED.role,
+        location = COALESCE(EXCLUDED.location, users.location),
+        skills = EXCLUDED.skills,
+        work_history = EXCLUDED.work_history,
+        connections = EXCLUDED.connections,
+        github_url = COALESCE(EXCLUDED.github_url, users.github_url),
+        linkedin_url = COALESCE(EXCLUDED.linkedin_url, users.linkedin_url),
+        website_url = COALESCE(EXCLUDED.website_url, users.website_url),
+        preferences = EXCLUDED.preferences,
+        last_active = EXCLUDED.last_active
       RETURNING *;
     `;
     const params = [
@@ -157,14 +180,18 @@ export const postgresRepo = {
 
   async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
     let existing = await this.findUserById(id);
+    if (!existing && updates.email) {
+      existing = await this.findUserByEmail(updates.email);
+    }
     if (!existing) {
-      const fallback = await query('SELECT * FROM users WHERE id = $1 LIMIT 1', [id]);
+      const fallback = await query('SELECT * FROM users WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1', [id, updates.email || id]);
       if (fallback.rows[0]) {
         existing = mapUserRow(fallback.rows[0]);
       }
     }
     if (!existing) return null;
 
+    const targetId = existing.id;
     const merged = { ...existing, ...updates };
     const sql = `
       UPDATE users SET
@@ -189,7 +216,7 @@ export const postgresRepo = {
       RETURNING *;
     `;
     const params = [
-      id,
+      targetId,
       merged.name,
       merged.avatarUrl || null,
       merged.coverUrl || null,
@@ -237,6 +264,15 @@ export const postgresRepo = {
   },
 
   async createNote(note: Note): Promise<Note> {
+    const uCheck = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [note.userId]);
+    if ((uCheck.rowCount ?? 0) === 0) {
+      await query(`
+        INSERT INTO users (id, username, email, name, password_hash, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (id) DO NOTHING;
+      `, [note.userId, note.ownerUsername || 'user', `${note.userId}@notenest.com`, note.ownerName || 'User', '$2a$10$dummy']);
+    }
+
     const sql = `
       INSERT INTO notes (
         id, user_id, owner_username, owner_name, title, content,
@@ -247,6 +283,18 @@ export const postgresRepo = {
         $7, $8, $9, $10, $11, $12,
         $13, $14, $15, $16
       )
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        content = EXCLUDED.content,
+        checklist = EXCLUDED.checklist,
+        color = EXCLUDED.color,
+        tags = EXCLUDED.tags,
+        is_pinned = EXCLUDED.is_pinned,
+        is_archived = EXCLUDED.is_archived,
+        is_trash = EXCLUDED.is_trash,
+        collaborators = EXCLUDED.collaborators,
+        reminder_id = EXCLUDED.reminder_id,
+        updated_at = EXCLUDED.updated_at
       RETURNING *;
     `;
     const params = [
@@ -334,6 +382,15 @@ export const postgresRepo = {
   },
 
   async createReminder(reminder: Reminder): Promise<Reminder> {
+    const uCheck = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [reminder.userId]);
+    if ((uCheck.rowCount ?? 0) === 0) {
+      await query(`
+        INSERT INTO users (id, username, email, name, password_hash, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (id) DO NOTHING;
+      `, [reminder.userId, 'user', `${reminder.userId}@notenest.com`, 'User', '$2a$10$dummy']);
+    }
+
     const sql = `
       INSERT INTO reminders (
         id, user_id, note_id, note_title, title, description,
@@ -344,6 +401,14 @@ export const postgresRepo = {
         $7, $8, $9, $10,
         $11, $12
       )
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        description = EXCLUDED.description,
+        due_date_time = EXCLUDED.due_date_time,
+        priority = EXCLUDED.priority,
+        is_completed = EXCLUDED.is_completed,
+        completed_at = EXCLUDED.completed_at,
+        updated_at = EXCLUDED.updated_at
       RETURNING *;
     `;
     const params = [
@@ -415,6 +480,15 @@ export const postgresRepo = {
   },
 
   async createMediaPost(post: MediaPost): Promise<MediaPost> {
+    const uCheck = await query('SELECT id FROM users WHERE id = $1 LIMIT 1', [post.userId]);
+    if ((uCheck.rowCount ?? 0) === 0) {
+      await query(`
+        INSERT INTO users (id, username, email, name, password_hash, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (id) DO NOTHING;
+      `, [post.userId, post.userUsername || 'user', `${post.userId}@notenest.com`, post.userName || 'User', '$2a$10$dummy']);
+    }
+
     const sql = `
       INSERT INTO media_posts (
         id, user_id, user_name, user_username, user_avatar, user_role,
@@ -425,6 +499,14 @@ export const postgresRepo = {
         $7, $8, $9, $10, $11, $12, $13, $14,
         $15, $16
       )
+      ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        caption = EXCLUDED.caption,
+        user_avatar = EXCLUDED.user_avatar,
+        likes = EXCLUDED.likes,
+        comments = EXCLUDED.comments,
+        tags = EXCLUDED.tags,
+        visibility = EXCLUDED.visibility
       RETURNING *;
     `;
     const params = [
